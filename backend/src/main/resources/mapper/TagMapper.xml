@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chat.mapper.TagMapper">
+
+    <select id="findByName" resultType="Tag">
+        SELECT * FROM `tag` WHERE name = #{name}
+    </select>
+
+    <select id="findByNameLike" resultType="Tag">
+        SELECT * FROM `tag` WHERE name LIKE CONCAT('%', #{keyword}, '%') ORDER BY name
+    </select>
+
+    <select id="findAll" resultType="Tag">
+        SELECT * FROM `tag` ORDER BY name
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `tag`(`name`, `cover_video_id`, `cover_image_path`, `description`)
+        VALUES(#{name}, #{coverVideoId}, #{coverImagePath}, #{description})
+    </insert>
+
+    <update id="updateCover">
+        UPDATE `tag` SET `cover_video_id` = #{coverVideoId}, `cover_image_path` = #{coverImagePath}
+        WHERE id = #{id}
+    </update>
+
+    <update id="updateDescription">
+        UPDATE `tag` SET `description` = #{description} WHERE id = #{id}
+    </update>
+
+    <delete id="deleteByName">
+        DELETE FROM `tag` WHERE name = #{name}
+    </delete>
+
+    <update id="rename">
+        UPDATE `tag` SET `name` = #{newName} WHERE name = #{oldName}
+    </update>
+
+</mapper>

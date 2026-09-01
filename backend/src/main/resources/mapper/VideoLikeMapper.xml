@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chat.mapper.VideoLikeMapper">
+    <select id="findByVideoAndUser" resultType="VideoLike">
+        SELECT * FROM `video_like` WHERE video_id = #{videoId} AND user_id = #{userId}
+    </select>
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `video_like`(video_id, user_id) VALUES(#{videoId}, #{userId})
+    </insert>
+    <delete id="delete">
+        DELETE FROM `video_like` WHERE video_id = #{videoId} AND user_id = #{userId}
+    </delete>
+    <select id="findLikedVideosByUser" resultType="Video">
+        SELECT v.* FROM `video` v
+        INNER JOIN `video_like` vl ON v.id = vl.video_id
+        WHERE vl.user_id = #{userId}
+        ORDER BY vl.created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="countLikedVideosByUser" resultType="int">
+        SELECT COUNT(*) FROM `video_like` WHERE user_id = #{userId}
+    </select>
+    <select id="findLikedVideosByUserWithFilter" resultType="Video">
+        SELECT v.* FROM `video` v
+        INNER JOIN `video_like` vl ON v.id = vl.video_id
+        WHERE vl.user_id = #{userId}
+        <if test="keyword != null and keyword != ''">
+            AND (v.title LIKE CONCAT('%',#{keyword},'%') OR v.hashtag LIKE CONCAT('%',#{keyword},'%'))
+        </if>
+        <if test="type != null and type != ''">
+            AND v.type = #{type}
+        </if>
+        <if test="category != null and category != ''">
+            AND v.category = #{category}
+        </if>
+        ORDER BY vl.created_at DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="countLikedVideosByUserWithFilter" resultType="int">
+        SELECT COUNT(*) FROM `video_like` vl
+        INNER JOIN `video` v ON v.id = vl.video_id
+        WHERE vl.user_id = #{userId}
+        <if test="keyword != null and keyword != ''">
+            AND (v.title LIKE CONCAT('%',#{keyword},'%') OR v.hashtag LIKE CONCAT('%',#{keyword},'%'))
+        </if>
+        <if test="type != null and type != ''">
+            AND v.type = #{type}
+        </if>
+        <if test="category != null and category != ''">
+            AND v.category = #{category}
+        </if>
+    </select>
+    <delete id="deleteByVideoIds">
+        DELETE FROM `video_like` WHERE video_id IN
+        <foreach collection="videoIds" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </delete>
+</mapper>

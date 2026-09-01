@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MediaBox</title>
+<link rel="stylesheet" href="css/style.css?v=111"/>
+</head>
+<body>
+
+<!-- Login -->
+<div id="loginPage" class="login-wrap">
+  <div class="login-box">
+    <h2>MediaBox</h2>
+    <div class="error" id="loginError"></div>
+    <input type="text" id="loginUser" placeholder="用户名" value="admin"/>
+    <input type="password" id="loginPass" placeholder="密码" value="admin123"/>
+    <button onclick="doLogin()">登 录</button>
+  </div>
+</div>
+
+<!-- Main -->
+<div id="mainPage" style="display:none">
+  <div class="header">
+    <div class="header-inner">
+      <span class="header-title">MediaBox</span>
+      <nav class="header-nav">
+        <button class="nav-btn active" data-view="home" onclick="switchView('home')">首页</button>
+        <button class="nav-btn" data-view="likes" onclick="switchView('likes')">点赞</button>
+      </nav>
+      <div class="header-actions">
+        <button class="header-icon-btn" id="feedMuteToggle" onclick="toggleFeedDefaultMute()" title="默认声音" style="display:none">
+          <svg class="feed-mute-icon-on" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+          <svg class="feed-mute-icon-off" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+        </button>
+        <div class="gallery-mode-dropdown" id="galleryModeDropdown">
+          <button class="mode-btn mode-btn-current" id="galleryModeBtn" onclick="toggleGalleryModeMenu()" title="切换展示模式">
+            <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+          </button>
+          <div class="gallery-mode-menu" id="galleryModeMenu">
+            <button class="gallery-mode-item active" data-mode="grid" onclick="switchMode('grid')">
+              <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>
+              <span>图标网格</span>
+            </button>
+            <button class="gallery-mode-item" data-mode="feed" onclick="switchMode('feed')">
+              <svg viewBox="0 0 24 24" fill="currentColor"><rect x="3" y="4" width="18" height="4"/><rect x="3" y="10" width="18" height="4"/><rect x="3" y="16" width="18" height="4"/></svg>
+              <span>列表模式</span>
+            </button>
+            <button class="gallery-mode-item" data-mode="gallery" onclick="switchMode('gallery')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="2" width="20" height="20" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
+              <span>沉浸式画廊</span>
+            </button>
+            <button class="gallery-mode-item" data-mode="carousel" onclick="switchMode('carousel')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="6" width="8" height="12" rx="1" opacity="0.5"/><rect x="7" y="3" width="10" height="18" rx="1"/><rect x="14" y="6" width="8" height="12" rx="1" opacity="0.5"/></svg>
+              <span>轮播焦点</span>
+            </button>
+
+          </div>
+        </div>
+        <button class="header-icon-btn" onclick="scanAllFolders()" title="扫描全部">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/><line x1="11" y1="8" x2="11" y2="14"/><line x1="8" y1="11" x2="14" y2="11"/></svg>
+        </button>
+        <button class="btn btn-red" onclick="doLogout()">退出</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="app-layout">
+    <!-- 左侧菜单 -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-inner">
+        <div class="sidebar-section">
+          <button class="sidebar-item active" data-view="home" onclick="switchView('home')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+            首页
+          </button>
+          <button class="sidebar-item" data-view="likes" onclick="switchView('likes')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+            点赞
+          </button>
+          <button class="sidebar-item" data-view="hotTags" onclick="switchView('hotTags')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" transform="translate(4,0) scale(0.55)" stroke-width="2.5"/></svg>
+            热门标签
+          </button>
+        </div>
+        <div class="sidebar-section">
+          <div class="sidebar-label">管理</div>
+          <button class="sidebar-item" data-view="pending" onclick="switchView('pending')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" transform="scale(0.78) translate(0,3)"/><line x1="6.5" y1="7.5" x2="6.51" y2="7.5" transform="scale(0.78) translate(0,3)"/><circle cx="18" cy="5" r="5" fill="var(--bg)" stroke="currentColor" stroke-width="1.8"/><polyline points="18 3 18 5 19.5 6" stroke-width="1.6" stroke-linecap="round"/></svg>
+            预分标签管理
+            <span class="sidebar-badge" id="pendingBadge" style="display:none">0</span>
+          </button>
+          <button class="sidebar-item" data-view="tagMgr" onclick="switchView('tagMgr')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/></svg>
+            标签管理
+          </button>
+          <button class="sidebar-item" data-view="folders" onclick="switchView('folders')">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+            文件夹管理
+          </button>
+        </div>
+      </div>
+    </aside>
+
+    <!-- 主内容区 -->
+    <main class="app-content">
+      <div class="search-bar" id="searchBar">
+        <div class="search-input-wrap">
+          <input class="search-input" id="searchInput" placeholder="搜索名字或#标签" autocomplete="off" onfocus="showSearchDropdown(this)" oninput="onSearchInput(this)" onkeydown="if(event.key==='Enter')doSearch()" onblur="setTimeout(hideSearchDropdown,200)"/>
+          <div class="search-dropdown" id="searchDropdownMain"></div>
+        </div>
+        <button class="btn" onclick="doSearch()">搜索</button>
+        <button class="btn btn-outline" onclick="clearSearch()">清除</button>
+      </div>
+
+  <!-- 文件夹管理页面 -->
+  <div id="folderView" style="display:none">
+    <div class="pending-page">
+      <div class="pending-page-header">
+        <h2>文件夹管理</h2>
+        <button class="btn" onclick="scanAllFolders()">扫描全部</button>
+      </div>
+      <div class="folder-add">
+        <button class="btn btn-outline" onclick="openDirBrowser()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+          浏览...
+        </button>
+        <span id="pickedFolderPath" class="picked-path"></span>
+        <button class="btn" onclick="addFolder()">添加</button>
+        <span class="msg" id="folderMsg"></span>
+      </div>
+      <div class="dir-browser" id="dirBrowser" style="display:none">
+        <div class="dir-browser-header">
+          <button class="btn btn-sm" onclick="browseParent()">⬆ 上级</button>
+          <span class="dir-current" id="dirCurrent">/</span>
+          <button class="btn btn-sm" onclick="closeDirBrowser()">关闭</button>
+        </div>
+        <div class="dir-list" id="dirList"></div>
+      </div>
+      <div id="folderList"></div>
+    </div>
+  </div>
+
+  <!-- 标签管理页面 -->
+  <div id="tagMgrView" style="display:none">
+    <div class="pending-page">
+      <div class="pending-page-header">
+        <h2>标签管理</h2>
+        <div class="pending-stats" id="tagMgrStats"></div>
+      </div>
+      <div class="pending-toolbar">
+        <div class="search-input-wrap tag-search-wrap">
+          <svg class="tag-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="tag-search-input" id="tagMgrSearch" placeholder="搜索标签..." autocomplete="off" oninput="filterTagMgr();toggleTagSearchClear(this)" onfocus="showSearchDropdown(this)" onblur="setTimeout(hideSearchDropdown,200)"/>
+          <button class="tag-search-clear" id="tagMgrSearchClear" onclick="clearTagMgrSearch()" style="visibility:hidden" title="清空">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+          <div class="search-dropdown" id="searchDropdownTagMgr"></div>
+        </div>
+      </div>
+      <div id="tagManagerList" class="tag-mgr-list"></div>
+      <div class="pending-pagination" id="tagMgrPagination">
+        <div class="pending-pagination-inner"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="filter-bar" id="categoryFilter"></div>
+
+  <!-- 列表页 -->
+  <div id="listView">
+    <div class="grid" id="videoGrid"></div>
+    <div class="pagination">
+      <div class="pagination-inner">
+        <button onclick="goPage(1)">首页</button>
+        <button onclick="goPage(window._getPage()-1)">上一页</button>
+        <span class="info" id="pageInfo"></span>
+        <button onclick="goPage(window._getPage()+1)">下一页</button>
+        <button onclick="goPage(window._getTotal())">末页</button>
+        <div class="jump">
+          <label>跳转</label>
+          <input type="number" id="jumpInput" min="1" onkeydown="if(event.key==='Enter')goPage(parseInt(this.value))"/>
+          <button onclick="goPage(parseInt(document.getElementById('jumpInput').value))">GO</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 滚动按钮 -->
+  <div class="scroll-buttons" id="scrollButtons">
+    <button class="scroll-btn" onclick="window.scrollTo({top:0,behavior:'smooth'})" title="返回顶部">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="18 15 12 9 6 15"/></svg>
+    </button>
+    <button class="scroll-btn" onclick="window.scrollTo({top:document.body.scrollHeight,behavior:'smooth'})" title="滑到底部">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+  </div>
+
+  <!-- 详情页 (左右结构) -->
+  <div id="detailView" style="display:none">
+    <div class="detail-layout">
+      <div class="detail-main">
+        <div class="detail-header">
+          <button class="detail-back" onclick="closeDetail()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
+          </button>
+        </div>
+        <div class="detail-video-wrap">
+          <div class="danmaku-layer" id="danmakuLayerDetail"></div>
+          <img id="detailImage" style="display:none" />
+          <video id="detailVideo" loop></video>
+          <button class="detail-center-play" onclick="toggleDetailPlay()">
+            <svg class="detail-icon-play" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <svg class="detail-icon-pause" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+          </button>
+          <div class="detail-controls">
+            <div class="detail-progress-wrap">
+              <div class="detail-progress-bar">
+                <div class="detail-progress-fill"><div class="detail-progress-thumb"></div></div>
+              </div>
+            </div>
+            <div class="detail-controls-bottom">
+              <div class="detail-controls-left">
+                <button class="detail-ctrl-btn detail-play-btn" onclick="toggleDetailPlay()">
+                  <svg class="detail-icon-play" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+                  <svg class="detail-icon-pause" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+                </button>
+                <span class="detail-time"><span id="detailTimeCurrent">0:00</span> / <span id="detailTimeTotal">0:00</span></span>
+              </div>
+              <div class="detail-controls-center">
+                <button class="detail-ctrl-btn danmaku-toggle" id="danmakuToggleFsBtn" onclick="toggleDetailDanmaku()" title="弹幕">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="14" rx="3"/><line x1="6" y1="9" x2="14" y2="9"/><line x1="6" y1="13" x2="18" y2="13"/><line x1="9" y1="21" x2="5" y2="18"/></svg>
+                </button>
+                <input class="danmaku-input" id="danmakuInputDetail" placeholder="发弹幕，回车发送" onkeydown="if(event.key==='Enter')sendDetailDanmaku()"/>
+              </div>
+              <div class="detail-controls-right">
+                <button class="detail-ctrl-btn" onclick="toggleDetailMute()" title="静音">
+                  <svg class="detail-icon-unmute" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+                  <svg class="detail-icon-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                </button>
+                <button class="detail-ctrl-btn" id="detailRateBtn" onclick="cyclePlaybackRate()" title="播放倍率">
+                  <span id="detailRateText" style="font-size:12px;font-weight:600">1x</span>
+                </button>
+                <button class="detail-ctrl-btn" onclick="toggleDetailPip()" title="画中画">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><rect x="11" y="9" width="10" height="7" rx="1" fill="currentColor" opacity=".3"/></svg>
+                </button>
+                <button class="detail-ctrl-btn" onclick="toggleFs()" title="全屏">
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="detail-info" id="detailInfo"></div>
+        <div class="detail-comments">
+          <div class="detail-comment-header">
+            <span>评论 (<span id="detailCommentCount">0</span>)</span>
+          </div>
+          <div class="detail-comment-list" id="detailCommentList"></div>
+          <div class="detail-comment-input">
+            <textarea id="detailCommentInput" placeholder="写评论..." rows="1" onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();submitDetailComment()}"></textarea>
+            <button class="btn btn-sm" onclick="submitDetailComment()">发送</button>
+          </div>
+        </div>
+      </div>
+      <aside class="detail-sidebar" id="detailSidebar">
+        <div class="detail-sidebar-search">
+          <div class="right-search-wrap">
+            <svg class="right-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            <div class="search-input-wrap">
+              <input class="right-search-input" id="detailSearchInput" placeholder="搜索名字或#标签" autocomplete="off" onfocus="showSearchDropdown(this)" oninput="onSearchInput(this);toggleDetailSearchClear(this)" onkeydown="if(event.key==='Enter'){document.getElementById('searchInput').value=this.value;doSearch()}" onblur="setTimeout(hideSearchDropdown,200)"/>
+              <div class="search-dropdown" id="searchDropdownDetail"></div>
+            </div>
+            <button class="right-search-clear" id="detailSearchClear" onclick="clearDetailSearch()" style="visibility:hidden" title="清除">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+            </button>
+            <button class="right-search-btn" onclick="document.getElementById('searchInput').value=document.getElementById('detailSearchInput').value;doSearch()" title="搜索">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+            </button>
+          </div>
+        </div>
+        <div id="detailSidebarTags"></div>
+      </aside>
+    </div>
+  </div>
+
+  <!-- 预分标签管理页面 -->
+  <div id="pendingView" style="display:none">
+    <div class="pending-page">
+      <div class="pending-page-header">
+        <h2>预分标签管理</h2>
+        <div class="pending-stats" id="pendingStats"></div>
+      </div>
+      <div class="pending-toolbar">
+        <div class="search-input-wrap tag-search-wrap">
+          <svg class="tag-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="tag-search-input" id="pendingSearch" placeholder="搜索标签..." autocomplete="off" oninput="filterPendingTags();toggleTagSearchClear(this)" onfocus="showSearchDropdown(this)" onblur="setTimeout(hideSearchDropdown,200)"/>
+          <button class="tag-search-clear" id="pendingSearchClear" onclick="clearPendingSearch()" style="visibility:hidden" title="清空">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+          <div class="search-dropdown" id="searchDropdownPending"></div>
+        </div>
+        <button class="btn btn-sm btn-red" onclick="rejectAllTags()">全部拒绝</button>
+      </div>
+      <div id="pendingTagList" class="pending-tag-list"></div>
+      <div class="pending-pagination" id="pendingPagination">
+        <div class="pending-pagination-inner"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 热门标签页面 -->
+  <div id="hotTagsView" style="display:none">
+    <div class="hot-tags-page">
+      <div class="hot-tags-header">
+        <h2>热门标签</h2>
+        <div class="hot-tags-search-wrap">
+          <svg class="hot-tags-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input class="hot-tags-search" id="hotTagsSearch" placeholder="搜索标签..." autocomplete="off" oninput="filterHotTags();toggleHotTagsClear(this)" onfocus="showSearchDropdown(this)" onblur="setTimeout(hideSearchDropdown,200)"/>
+          <button class="hot-tags-clear" id="hotTagsSearchClear" onclick="clearHotTagsSearch()" style="visibility:hidden" title="清空">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+          <div class="search-dropdown" id="searchDropdownHotTags"></div>
+        </div>
+      </div>
+      <div class="hot-tags-grid" id="hotTagsGrid"></div>
+    </div>
+  </div>
+
+    </main>
+
+    <!-- 右侧栏 -->
+    <aside class="app-right-sidebar" id="rightSidebar">
+      <div class="right-sidebar-search">
+        <div class="right-search-wrap">
+          <svg class="right-search-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <div class="search-input-wrap">
+            <input class="right-search-input" id="searchInputRight" placeholder="搜索名字或#标签" autocomplete="off" onfocus="showSearchDropdown(this)" oninput="onSearchInput(this);toggleRightSearchClear(this)" onkeydown="if(event.key==='Enter'){document.getElementById('searchInput').value=this.value;doSearch()}" onblur="setTimeout(hideSearchDropdown,200)"/>
+            <div class="search-dropdown" id="searchDropdownRight"></div>
+          </div>
+          <button class="right-search-clear" id="rightSearchClear" onclick="clearRightSearch()" style="visibility:hidden" title="清除">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+          <button class="right-search-btn" onclick="document.getElementById('searchInput').value=document.getElementById('searchInputRight').value;doSearch()" title="搜索">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          </button>
+        </div>
+      </div>
+      <div id="rightSidebarTags" style="display:none"></div>
+      <div class="right-sidebar-content">
+        <div class="filter-bar" id="categoryFilterRight"></div>
+      </div>
+    </aside>
+  </div>
+</div>
+
+<!-- Video Player Modal -->
+<div class="modal" id="videoModal" onclick="if(event.target===this)closeModal()">
+  <div class="video-player-wrap" id="videoPlayerWrap">
+    <div class="danmaku-layer" id="danmakuLayerModal"></div>
+    <video id="modalVideo" loop></video>
+    <button class="video-player-center-btn" id="videoCenterBtn">
+      <svg class="vp-icon-play" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+      <svg class="vp-icon-pause" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+    </button>
+    <button class="vp-nav-btn vp-gallery-nav vp-nav-prev" onclick="window._modalPrevVideo()" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>
+    </button>
+    <button class="vp-nav-btn vp-gallery-nav vp-nav-next" onclick="window._modalNextVideo()" style="display:none">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
+    </button>
+    <button class="vp-locate-btn vp-gallery-locate" onclick="window._modalLocateVideo()" style="display:none" title="定位到页面">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+    </button>
+    <div class="video-player-controls">
+      <div class="vp-progress-wrap" id="vpProgressWrap">
+        <div class="vp-progress-bar"><div class="vp-progress-fill" id="vpProgressFill"><div class="vp-progress-thumb"></div></div></div>
+      </div>
+      <div class="vp-bottom">
+        <div class="vp-left">
+          <button class="vp-btn" id="vpPlayBtn">
+            <svg class="vp-icon-play" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            <svg class="vp-icon-pause" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16"/><rect x="14" y="4" width="4" height="16"/></svg>
+          </button>
+          <span class="vp-time"><span id="vpTimeCurrent">0:00</span> / <span id="vpTimeTotal">0:00</span></span>
+        </div>
+        <div class="vp-center">
+          <div class="danmaku-toggle" id="danmakuToggleModal" onclick="toggleDanmaku()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="14" rx="3"/><line x1="6" y1="9" x2="14" y2="9"/><line x1="6" y1="13" x2="18" y2="13"/><line x1="9" y1="21" x2="5" y2="18"/></svg>
+          </div>
+          <input class="danmaku-input" id="danmakuInputModal" placeholder="发弹幕，回车发送" onkeydown="if(event.key==='Enter')sendDanmaku()"/>
+        </div>
+        <div class="vp-right">
+          <button class="vp-btn" id="vpLikeBtn" title="点赞" onclick="window._modalLike()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          </button>
+          <button class="vp-btn" id="vpDetailBtn" title="详情" onclick="window._modalDetail()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+          </button>
+          <button class="vp-btn" id="vpMuteBtn" title="静音">
+            <svg class="vp-icon-unmute" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
+            <svg class="vp-icon-muted" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="display:none"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+          </button>
+          <button class="vp-btn" id="vpRateBtn" title="播放倍率">
+            <span class="vp-rate-text" id="vpRateText">1x</span>
+          </button>
+          <button class="vp-btn" id="vpFsBtn" title="全屏">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+          </button>
+          <button class="vp-btn" id="vpCloseBtn" title="关闭">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Image Modal -->
+<div class="modal" id="imageModal" onclick="if(event.target===this)closeImageModal()">
+  <div class="modal-image-wrap">
+    <img id="modalImage" class="modal-image"/>
+    <button class="modal-close-btn" onclick="closeImageModal()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+    <div class="modal-image-actions">
+      <button class="modal-action-btn" id="modalImageLikeBtn" title="点赞" onclick="window._modalLike()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+      </button>
+      <button class="modal-action-btn" id="modalImageDetailBtn" title="详情" onclick="window._modalDetail()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+      </button>
+    </div>
+  </div>
+</div>
+
+<script src="js/app.js?v=174"></script>
+</body>
+</html>

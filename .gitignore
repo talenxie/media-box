@@ -1,0 +1,33 @@
+# IDE
+.idea/
+*.iml
+
+# MiMoCode
+.mimocode/
+
+# 数据文件（用户数据，不提交）
+data/
+thumbnails/
+output/
+
+# Redis
+dump.rdb
+
+# Maven 构建产物
+backend/target/
+
+# 工具二进制（ffmpeg 等）
+backend/tools/
+
+# Node（临时用的 puppeteer）
+backend/node_modules/
+backend/package.json
+backend/package-lock.json
+
+# OS 文件
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# 日志
+*.log

@@ -1,0 +1,260 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chat.mapper.VideoMapper">
+    <select id="findAll" resultType="Video">
+        SELECT * FROM `video` WHERE hidden = 0 OR hidden IS NULL ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="findByType" resultType="Video">
+        SELECT * FROM `video` WHERE type = #{type} AND (hidden = 0 OR hidden IS NULL) ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="findByCategory" resultType="Video">
+        SELECT * FROM `video` WHERE category = #{category} AND (hidden = 0 OR hidden IS NULL) ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="findByTypeAndCategory" resultType="Video">
+        SELECT * FROM `video` WHERE type = #{type} AND category = #{category} AND (hidden = 0 OR hidden IS NULL) ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="search" resultType="Video">
+        SELECT * FROM `video`
+        WHERE (hidden = 0 OR hidden IS NULL) AND (title LIKE CONCAT('%', #{keyword}, '%')
+           OR hashtag LIKE CONCAT('%', #{keyword}, '%')
+           OR file_name LIKE CONCAT('%', #{keyword}, '%'))
+        ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="findById" resultType="Video">
+        SELECT * FROM `video` WHERE id = #{id}
+    </select>
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `video`(title, file_name, file_path, thumb_path, type, category, duration, file_size, width, height, hashtag, pending_hashtag, source, view_count, comment_count)
+        VALUES(#{title}, #{fileName}, #{filePath}, #{thumbPath}, #{type}, #{category}, #{duration}, #{fileSize}, #{width}, #{height}, #{hashtag}, #{pendingHashtag}, #{source}, 0, 0)
+    </insert>
+    <update id="updateLikeCount">
+        UPDATE `video` SET like_count = like_count + #{delta} WHERE id = #{id}
+    </update>
+    <update id="updateViewCount">
+        UPDATE `video` SET view_count = view_count + 1 WHERE id = #{id}
+    </update>
+    <update id="addViewCount">
+        UPDATE `video` SET view_count = view_count + #{count} WHERE id = #{id}
+    </update>
+    <update id="updateCommentCount">
+        UPDATE `video` SET comment_count = comment_count + #{delta} WHERE id = #{id}
+    </update>
+    <select id="countAll" resultType="int">
+        SELECT COUNT(*) FROM `video` WHERE hidden = 0 OR hidden IS NULL
+    </select>
+    <select id="countByType" resultType="int">
+        SELECT COUNT(*) FROM `video` WHERE type = #{type} AND (hidden = 0 OR hidden IS NULL)
+    </select>
+    <select id="countByCategory" resultType="int">
+        SELECT COUNT(*) FROM `video` WHERE category = #{category} AND (hidden = 0 OR hidden IS NULL)
+    </select>
+    <select id="countByTypeAndCategory" resultType="int">
+        SELECT COUNT(*) FROM `video` WHERE type = #{type} AND category = #{category} AND (hidden = 0 OR hidden IS NULL)
+    </select>
+    <select id="countSearch" resultType="int">
+        SELECT COUNT(*) FROM `video`
+        WHERE (hidden = 0 OR hidden IS NULL) AND (title LIKE CONCAT('%', #{keyword}, '%')
+           OR hashtag LIKE CONCAT('%', #{keyword}, '%')
+           OR file_name LIKE CONCAT('%', #{keyword}, '%'))
+    </select>
+    <select id="findByFilePath" resultType="Video">
+        SELECT * FROM `video` WHERE file_path = #{filePath}
+    </select>
+    <select id="findByFileName" resultType="Video">
+        SELECT * FROM `video` WHERE file_name = #{fileName}
+    </select>
+    <select id="findByFilePathIgnoreCase" resultType="Video">
+        SELECT * FROM `video` WHERE LOWER(file_path) = LOWER(#{filePath})
+    </select>
+    <select id="findByFileNameIgnoreCase" resultType="Video">
+        SELECT * FROM `video` WHERE LOWER(file_name) = LOWER(#{fileName})
+    </select>
+    <select id="findCategories" resultType="string">
+        SELECT DISTINCT category FROM `video` WHERE category IS NOT NULL AND (hidden = 0 OR hidden IS NULL) ORDER BY category
+    </select>
+    <select id="findAllNoLimit" resultType="Video">
+        SELECT * FROM `video` ORDER BY id DESC
+    </select>
+    <delete id="deleteByFilePathPrefix">
+        DELETE FROM `video` WHERE file_path LIKE CONCAT(#{prefix}, '%')
+    </delete>
+    <update id="hideByFilePathPrefix">
+        UPDATE `video` SET hidden = 1 WHERE file_path LIKE CONCAT(#{prefix}, '%')
+    </update>
+    <update id="hideById">
+        UPDATE `video` SET hidden = 1 WHERE id = #{id}
+    </update>
+    <update id="unhideById">
+        UPDATE `video` SET hidden = 0 WHERE id = #{id}
+    </update>
+    <delete id="deleteById">
+        DELETE FROM `video` WHERE id = #{id}
+    </delete>
+    <update id="updateHashtag">
+        UPDATE `video` SET hashtag = #{hashtag} WHERE id = #{id}
+    </update>
+    <select id="findAllTags" resultType="string">
+        SELECT hashtag FROM `video` WHERE hashtag IS NOT NULL AND hashtag != ''
+    </select>
+    <select id="findAutoTagged" resultType="Video">
+        SELECT * FROM `video`
+        WHERE pending_hashtag IS NOT NULL AND pending_hashtag != ''
+        ORDER BY id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="countAutoTagged" resultType="int">
+        SELECT COUNT(*) FROM `video`
+        WHERE pending_hashtag IS NOT NULL AND pending_hashtag != ''
+    </select>
+    <select id="findPendingTags" resultType="string">
+        SELECT pending_hashtag FROM `video`
+        WHERE pending_hashtag IS NOT NULL AND pending_hashtag != ''
+    </select>
+    <select id="findByPendingTag" resultType="Video">
+        SELECT * FROM `video`
+        WHERE pending_hashtag LIKE CONCAT('%', #{tag}, '%')
+        ORDER BY id DESC
+        LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="countByPendingTag" resultType="int">
+        SELECT COUNT(*) FROM `video`
+        WHERE pending_hashtag LIKE CONCAT('%', #{tag}, '%')
+    </select>
+    <update id="confirmPendingTag">
+        UPDATE `video` SET
+            hashtag = CASE
+                WHEN hashtag IS NULL OR hashtag = '' THEN #{tag}
+                WHEN hashtag = #{tag} THEN hashtag
+                WHEN hashtag LIKE CONCAT(#{tag}, ',%') THEN hashtag
+                WHEN hashtag LIKE CONCAT('%,', #{tag}) THEN hashtag
+                WHEN hashtag LIKE CONCAT('%,', #{tag}, ',%') THEN hashtag
+                ELSE CONCAT(hashtag, ',', #{tag})
+            END,
+            pending_hashtag = NULLIF(TRIM(BOTH ',' FROM REPLACE(REPLACE(CONCAT(',', COALESCE(pending_hashtag, ''), ','), CONCAT(',', #{tag}, ','), ','), ',,', ',')), ',')
+        WHERE id = #{id}
+    </update>
+    <update id="rejectPendingTag">
+        UPDATE `video` SET pending_hashtag = NULLIF(TRIM(BOTH ',' FROM REPLACE(REPLACE(CONCAT(',', COALESCE(pending_hashtag, ''), ','), CONCAT(',', #{tag}, ','), ','), ',,', ',')), ',')
+        WHERE id = #{id}
+    </update>
+    <update id="clearPendingHashtag">
+        UPDATE `video` SET pending_hashtag = NULL WHERE id = #{id}
+    </update>
+    <update id="renamePendingTag">
+        UPDATE `video` SET pending_hashtag = REPLACE(pending_hashtag, #{oldTag}, #{newTag})
+        WHERE pending_hashtag LIKE CONCAT('%', #{oldTag}, '%')
+    </update>
+    <update id="updatePendingHashtag">
+        UPDATE `video` SET pending_hashtag = #{pendingHashtag} WHERE id = #{id}
+    </update>
+    <update id="updateFilePath">
+        UPDATE `video` SET file_path = #{filePath}, thumb_path = #{thumbPath}, file_size = #{fileSize} WHERE id = #{id}
+    </update>
+    <update id="updateFilePathOnly">
+        UPDATE `video` SET file_path = #{filePath} WHERE id = #{id}
+    </update>
+    <update id="updateTitle">
+        UPDATE `video` SET title = #{title} WHERE id = #{id}
+    </update>
+    <update id="updateThumbUrl">
+        UPDATE `video` SET thumb_path = #{thumbUrl} WHERE id = #{id}
+    </update>
+    <update id="clearAllPendingHashtag">
+        UPDATE `video` SET pending_hashtag = NULL
+        WHERE pending_hashtag IS NOT NULL AND pending_hashtag != ''
+    </update>
+    <update id="clearCategory">
+        UPDATE `video` SET category = NULL WHERE id = #{id}
+    </update>
+    <update id="clearCategoryBulk">
+        UPDATE `video` SET category = NULL WHERE category = #{category}
+    </update>
+    <select id="findByCategoryAll" resultType="Video">
+        SELECT * FROM `video` WHERE category = #{category} ORDER BY id DESC
+    </select>
+    <update id="renameTag">
+        UPDATE `video` SET hashtag = REPLACE(hashtag, #{oldName}, #{newName})
+        WHERE hashtag IS NOT NULL AND hashtag LIKE CONCAT('%', #{oldName}, '%')
+    </update>
+    <update id="removeTag">
+        UPDATE `video` SET hashtag = TRIM(BOTH ',' FROM REPLACE(REPLACE(hashtag, #{tag}, ''), ',,', ','))
+        WHERE hashtag IS NOT NULL AND hashtag LIKE CONCAT('%', #{tag}, '%')
+    </update>
+    <select id="findNsfw" resultType="Video">
+        SELECT * FROM `video` WHERE nsfw = 1 AND (hidden = 0 OR hidden IS NULL) ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="countNsfw" resultType="int">
+        SELECT COUNT(*) FROM `video` WHERE nsfw = 1 AND (hidden = 0 OR hidden IS NULL)
+    </select>
+    <select id="findNsfwByType" resultType="Video">
+        SELECT * FROM `video` WHERE nsfw = 1 AND type = #{type} AND (hidden = 0 OR hidden IS NULL) ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="countNsfwByType" resultType="int">
+        SELECT COUNT(*) FROM `video` WHERE nsfw = 1 AND type = #{type} AND (hidden = 0 OR hidden IS NULL)
+    </select>
+    <select id="findNsfwByCategory" resultType="Video">
+        SELECT * FROM `video` WHERE nsfw = 1 AND category = #{category} AND (hidden = 0 OR hidden IS NULL) ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="countNsfwByCategory" resultType="int">
+        SELECT COUNT(*) FROM `video` WHERE nsfw = 1 AND category = #{category} AND (hidden = 0 OR hidden IS NULL)
+    </select>
+    <select id="findNsfwByTypeAndCategory" resultType="Video">
+        SELECT * FROM `video` WHERE nsfw = 1 AND type = #{type} AND category = #{category} AND (hidden = 0 OR hidden IS NULL) ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="countNsfwByTypeAndCategory" resultType="int">
+        SELECT COUNT(*) FROM `video` WHERE nsfw = 1 AND type = #{type} AND category = #{category} AND (hidden = 0 OR hidden IS NULL)
+    </select>
+    <select id="searchNsfw" resultType="Video">
+        SELECT * FROM `video`
+        WHERE nsfw = 1 AND (hidden = 0 OR hidden IS NULL) AND (title LIKE CONCAT('%', #{keyword}, '%')
+           OR hashtag LIKE CONCAT('%', #{keyword}, '%')
+           OR file_name LIKE CONCAT('%', #{keyword}, '%'))
+        ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="countSearchNsfw" resultType="int">
+        SELECT COUNT(*) FROM `video`
+        WHERE nsfw = 1 AND (hidden = 0 OR hidden IS NULL) AND (title LIKE CONCAT('%', #{keyword}, '%')
+           OR hashtag LIKE CONCAT('%', #{keyword}, '%')
+           OR file_name LIKE CONCAT('%', #{keyword}, '%'))
+    </select>
+    <update id="updateNsfw">
+        UPDATE `video` SET nsfw = #{nsfw}, nsfw_type = #{nsfwType} WHERE id = #{id}
+    </update>
+    <select id="findNonNsfw" resultType="Video">
+        SELECT * FROM `video` WHERE (nsfw = 0 OR nsfw IS NULL) AND (hidden = 0 OR hidden IS NULL) ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="countNonNsfw" resultType="int">
+        SELECT COUNT(*) FROM `video` WHERE (nsfw = 0 OR nsfw IS NULL) AND (hidden = 0 OR hidden IS NULL)
+    </select>
+    <select id="findNonNsfwByType" resultType="Video">
+        SELECT * FROM `video` WHERE (nsfw = 0 OR nsfw IS NULL) AND type = #{type} AND (hidden = 0 OR hidden IS NULL) ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="countNonNsfwByType" resultType="int">
+        SELECT COUNT(*) FROM `video` WHERE (nsfw = 0 OR nsfw IS NULL) AND type = #{type} AND (hidden = 0 OR hidden IS NULL)
+    </select>
+    <select id="findNonNsfwByCategory" resultType="Video">
+        SELECT * FROM `video` WHERE (nsfw = 0 OR nsfw IS NULL) AND category = #{category} AND (hidden = 0 OR hidden IS NULL) ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="countNonNsfwByCategory" resultType="int">
+        SELECT COUNT(*) FROM `video` WHERE (nsfw = 0 OR nsfw IS NULL) AND category = #{category} AND (hidden = 0 OR hidden IS NULL)
+    </select>
+    <select id="findNonNsfwByTypeAndCategory" resultType="Video">
+        SELECT * FROM `video` WHERE (nsfw = 0 OR nsfw IS NULL) AND type = #{type} AND category = #{category} AND (hidden = 0 OR hidden IS NULL) ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="countNonNsfwByTypeAndCategory" resultType="int">
+        SELECT COUNT(*) FROM `video` WHERE (nsfw = 0 OR nsfw IS NULL) AND type = #{type} AND category = #{category} AND (hidden = 0 OR hidden IS NULL)
+    </select>
+    <select id="searchNonNsfw" resultType="Video">
+        SELECT * FROM `video`
+        WHERE (nsfw = 0 OR nsfw IS NULL) AND (hidden = 0 OR hidden IS NULL) AND (title LIKE CONCAT('%', #{keyword}, '%')
+           OR hashtag LIKE CONCAT('%', #{keyword}, '%')
+           OR file_name LIKE CONCAT('%', #{keyword}, '%'))
+        ORDER BY id DESC LIMIT #{limit} OFFSET #{offset}
+    </select>
+    <select id="countSearchNonNsfw" resultType="int">
+        SELECT COUNT(*) FROM `video`
+        WHERE (nsfw = 0 OR nsfw IS NULL) AND (hidden = 0 OR hidden IS NULL) AND (title LIKE CONCAT('%', #{keyword}, '%')
+           OR hashtag LIKE CONCAT('%', #{keyword}, '%')
+           OR file_name LIKE CONCAT('%', #{keyword}, '%'))
+    </select>
+</mapper>

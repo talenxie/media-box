@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.chat.mapper.DanmakuMapper">
+    <select id="findByVideoId" resultType="Danmaku">
+        SELECT * FROM `danmaku` WHERE video_id = #{videoId} ORDER BY time_point ASC
+    </select>
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO `danmaku`(video_id, user_id, content, time_point, color)
+        VALUES(#{videoId}, #{userId}, #{content}, #{timePoint}, #{color})
+    </insert>
+    <delete id="deleteByVideoId">
+        DELETE FROM `danmaku` WHERE video_id = #{videoId}
+    </delete>
+</mapper>
