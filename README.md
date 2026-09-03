@@ -1,6 +1,6 @@
 # MediaBox
 
-本地视频/图片媒体管理系统，支持自动标签、弹幕播放、文件夹扫描。
+本地视频/图片媒体管理系统。支持文件夹扫描导入、自动标签分类、弹幕播放、多种浏览模式。纯本地部署，数据不上传云端。
 
 ## 截图
 
@@ -21,35 +21,36 @@
 | 模块 | 技术 |
 |------|------|
 | 后端 | Spring Boot 2.7 + MyBatis + H2 + Redis |
-| 前端 | 原生 HTML/CSS/JS |
-| 工具 | ffmpeg (视频缩略图生成) |
+| 前端 | 原生 HTML / CSS / JS |
+| 工具 | ffmpeg (缩略图生成) |
 
 ## 功能特性
 
 ### 媒体管理
-- 文件夹扫描导入视频和图片
+- 文件夹扫描导入视频和图片，支持增量扫描
 - 支持 mp4、webm、avi、mov、mkv、flv 等视频格式
-- 支持 jpg、png、gif、webp 等图片格式
-- 缩略图自动生成（ffmpeg 智能截取，跳过黑帧）
+- 支持 jpg、png、gif、webp、bmp 等图片格式
+- 缩略图懒加载：浏览到哪页生成哪页，首次访问自动生成，后续访问直接命中缓存
+- ffmpeg 智能截取：跳过黑帧，多候选时间点亮度检测
 - 文件重命名、删除
 
 ### 标签系统
 - 根据文件名/目录名自动生成预分标签
 - 预分标签管理：确认、拒绝、重命名、批量操作
+- 确认标签时自动设置封面（取第一个视频/图片的缩略图）
 - 标签管理：重命名、删除、封面设置、简介编辑
-- 热门标签展示
-- 标签搜索
+- 热门标签展示、标签搜索
+- 启动时自动修复失效的标签封面引用
 
 ### 播放器
-- 视频播放：弹幕、画中画、倍速（0.25x-3x）、进度条
+- 视频播放：弹幕、画中画、倍速（0.25x-3x）、进度条拖拽
 - 图片/GIF 查看
-- 浏览计数
+- 浏览计数（Redis 异步统计）
 
 ### 展示模式
 - 图标网格模式（默认）
 - 推特流模式（自动播放）
-- 沉浸式画廊模式
-- 轮播焦点模式
+- 沉浸式画廊模式（支持幻灯片、键盘左右切换、多种过渡动画）
 
 ### 其他
 - 用户登录（默认账号 admin / admin123）
@@ -141,7 +142,8 @@ media-box/
 | spring.redis.password | Redis 密码 | 123456 |
 | chat.thumb-dir | 缩略图存储目录 | ./thumbnails |
 | chat.thumb-max-mb | 缩略图最大容量(MB) | 500 |
-| chat.ffmpeg-path | ffmpeg 路径 | 见配置文件 |
+| chat.thumb-queue-size | 后台缩略图队列大小 | 200 |
+| chat.ffmpeg-path | ffmpeg 路径 | ./tools/ffmpeg.exe |
 
 ## API 接口
 
@@ -155,13 +157,20 @@ media-box/
 | /api/videos/{id}/comments | GET/POST | 评论列表/添加评论 |
 | /api/videos/{id}/danmaku | GET/POST | 弹幕列表/发送弹幕 |
 | /api/videos/{id}/tags | POST/DELETE | 添加/删除标签 |
+| /api/videos/{id}/confirm-tag | POST | 确认预分标签（自动设置封面） |
 | /api/categories | GET | 分类列表 |
 | /api/tags | GET | 所有标签 |
+| /api/tags/{tag}/meta | GET | 标签元数据（封面、简介） |
+| /api/tags/{tag}/cover | PUT | 设置标签封面 |
 | /api/tags/{tag}/videos | GET | 标签下视频 |
+| /api/pending-tags | GET | 预分标签列表 |
+| /api/pending-tags/{tag}/confirm-all | POST | 批量确认预分标签 |
 | /api/folders | GET/POST/DELETE | 文件夹管理 |
 | /api/folders/{id}/scan | POST | 扫描文件夹 |
-| /api/stream/video/{id} | GET | 视频流 |
-| /api/stream/thumb/{id} | GET | 缩略图 |
+| /api/stream/video/{id} | GET | 视频流（Range 请求） |
+| /api/stream/thumb/{id} | GET | 缩略图（懒加载自动生成） |
+| /api/thumbnail/stats | GET | 缩略图统计 |
+| /api/thumbnail/clean | POST | 清理孤立/超限缩略图 |
 
 ## License
 
