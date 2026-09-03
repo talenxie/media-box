@@ -599,11 +599,12 @@ public class VideoController {
     public Result<?> getTagMeta(@PathVariable String tag) {
         Tag tagObj = tagMapper.findByName(tag);
         if (tagObj == null) {
-            // 自动创建
             tagObj = new Tag();
             tagObj.setName(tag);
             tagMapper.insert(tagObj);
         }
+        // 修复失效的封面引用
+        fixStaleCover(tagObj);
         return Result.ok(tagObj);
     }
 
@@ -914,8 +915,40 @@ public class VideoController {
 
     @PostMapping("/videos/{id}/confirm-tag")
     public Result<?> confirmPendingTag(@PathVariable Long id, @RequestBody Map<String, String> body) {
-        String tag = body.get("tag");
-        videoMapper.confirmPendingTag(id, tag.trim());
+        String tag = body.get("tag").trim();
+        videoMapper.confirmPendingTag(id, tag);
+
+        // 如果标签还没有封面，用当前视频设置封面
+        Tag tagObj = tagMapper.findByName(tag);
+        if (tagObj == null) {
+            tagObj = new Tag();
+            tagObj.setName(tag);
+            tagMapper.insert(tagObj);
+        }
+        if (tagObj.getCoverVideoId() == null && tagObj.getCoverImagePath() == null) {
+            Video video = videoMapper.findById(id);
+            if (video != null) {
+                if (video.getThumbPath() == null || !new File(video.getThumbPath()).exists()) {
+                    File mediaFile = new File(video.getFilePath());
+                    if (mediaFile.exists()) {
+                        String thumbPath = thumbnailService.generateSync(mediaFile, video.getTitle());
+                        if (thumbPath != null) {
+                            video.setThumbPath(thumbPath);
+                            videoMapper.updateFilePath(video.getId(), video.getFilePath(), thumbPath, video.getFileSize());
+                        } else {
+                            log.warn("confirm-tag: thumbnail generation failed for video {}, skipping cover", id);
+                        }
+                    } else {
+                        log.warn("confirm-tag: media file not found: {}", video.getFilePath());
+                    }
+                }
+                // 只在缩略图确实存在时才设置封面
+                if (video.getThumbPath() != null && new File(video.getThumbPath()).exists()) {
+                    tagMapper.updateCover(tagObj.getId(), video.getId(), null);
+                }
+            }
+        }
+
         return Result.ok("已确认");
     }
 
@@ -928,10 +961,46 @@ public class VideoController {
 
     @PostMapping("/pending-tags/{tag}/confirm-all")
     public Result<?> confirmAllTag(@PathVariable String tag) {
-        List<Video> videos = videoMapper.findByPendingTag(tag, 0, 10000);
+        String tagName = tag.trim();
+        List<Video> videos = videoMapper.findByPendingTag(tagName, 0, 10000);
         for (Video v : videos) {
-            videoMapper.confirmPendingTag(v.getId(), tag);
+            videoMapper.confirmPendingTag(v.getId(), tagName);
         }
+
+        // 设置标签封面：先确保第一个视频/图片有缩略图
+        if (!videos.isEmpty()) {
+            Video first = videos.get(0);
+            // 标签可能不存在，需要自动创建
+            Tag tagObj = tagMapper.findByName(tagName);
+            if (tagObj == null) {
+                tagObj = new Tag();
+                tagObj.setName(tagName);
+                tagMapper.insert(tagObj);
+            }
+            // 只在标签没有封面时设置
+            if (tagObj.getCoverVideoId() == null && tagObj.getCoverImagePath() == null) {
+                // 确保第一个文件有缩略图（视频和图片都走这个逻辑）
+                if (first.getThumbPath() == null || !new File(first.getThumbPath()).exists()) {
+                    File mediaFile = new File(first.getFilePath());
+                    if (mediaFile.exists()) {
+                        String thumbPath = thumbnailService.generateSync(mediaFile, first.getTitle());
+                        if (thumbPath != null) {
+                            first.setThumbPath(thumbPath);
+                            videoMapper.updateFilePath(first.getId(), first.getFilePath(), thumbPath, first.getFileSize());
+                        } else {
+                            log.warn("confirm-all: thumbnail generation failed for video {}", first.getId());
+                        }
+                    } else {
+                        log.warn("confirm-all: media file not found: {}", first.getFilePath());
+                    }
+                }
+                // 只在缩略图确实存在时才设置封面
+                if (first.getThumbPath() != null && new File(first.getThumbPath()).exists()) {
+                    tagMapper.updateCover(tagObj.getId(), first.getId(), null);
+                }
+            }
+        }
+
         return Result.ok("已确认" + videos.size() + "个视频");
     }
 
@@ -987,6 +1056,7 @@ public class VideoController {
             response.setStatus(404);
             return;
         }
+
         File file = new File(video.getFilePath());
         if (!file.exists()) {
             response.setStatus(404);
@@ -998,12 +1068,57 @@ public class VideoController {
     @GetMapping("/stream/thumb/{id}")
     public void streamThumb(@PathVariable Long id, HttpServletRequest request, HttpServletResponse response) throws IOException {
         Video video = videoMapper.findById(id);
-        if (video == null || video.getThumbPath() == null) {
+        if (video == null) {
+            log.warn("Thumbnail request: video {} not found in DB", id);
             response.setStatus(404);
             return;
         }
-        File file = new File(video.getThumbPath());
+
+        String thumbPath = video.getThumbPath();
+
+        // 检查是否需要生成缩略图：不存在、或指向原图（非thumbnails目录）
+        boolean needGenerate = false;
+        if (thumbPath == null || thumbPath.isEmpty()) {
+            needGenerate = true;
+        } else {
+            File thumbFile = new File(thumbPath);
+            if (!thumbFile.exists()) {
+                needGenerate = true;
+            } else if (video.getFilePath() != null && thumbPath.equals(video.getFilePath())) {
+                // 图片类型的thumbPath指向原图，需要生成真正的缩略图
+                needGenerate = true;
+            }
+        }
+
+        if (needGenerate) {
+            log.info("Thumbnail missing for video {} (path={}), regenerating...", id, thumbPath);
+            if (video.getFilePath() == null) {
+                log.warn("Thumbnail gen failed: file_path is null for video {}", id);
+                response.setStatus(404);
+                return;
+            }
+            File videoFile = new File(video.getFilePath());
+            if (!videoFile.exists()) {
+                log.warn("Thumbnail gen failed: source file not found: {}", video.getFilePath());
+                response.setStatus(404);
+                return;
+            }
+            String newThumbPath = thumbnailService.generateSync(videoFile, video.getTitle());
+            if (newThumbPath != null) {
+                video.setThumbPath(newThumbPath);
+                videoMapper.updateFilePath(video.getId(), video.getFilePath(), newThumbPath, video.getFileSize());
+                thumbPath = newThumbPath;
+                log.info("Thumbnail regenerated for video {}: {}", id, newThumbPath);
+            } else {
+                log.warn("Thumbnail generation returned null for video {}", id);
+                response.setStatus(404);
+                return;
+            }
+        }
+
+        File file = new File(thumbPath);
         if (!file.exists()) {
+            log.warn("Thumbnail file still not exists after path resolved: {}", thumbPath);
             response.setStatus(404);
             return;
         }
@@ -1067,5 +1182,39 @@ public class VideoController {
         if (lower.endsWith(".gif")) return "image/gif";
         if (lower.endsWith(".webp")) return "image/webp";
         return "image".equals(type) ? "image/jpeg" : "video/mp4";
+    }
+
+    /** 修复标签封面：如果 coverVideoId 指向不存在的视频，自动找该标签下第一个有效视频 */
+    private void fixStaleCover(Tag tag) {
+        if (tag.getCoverVideoId() == null || tag.getCoverVideoId() == 0) return;
+        Video coverVideo = videoMapper.findById(tag.getCoverVideoId());
+        if (coverVideo != null) return; // 封面视频存在，无需修复
+
+        log.info("Fixing stale cover for tag '{}': coverVideoId={} not found, searching...", tag.getName(), tag.getCoverVideoId());
+
+        // 从该标签下的视频中找一个有效的
+        List<Video> tagVideos = videoMapper.findByHashtag(tag.getName(), 0, 1);
+        if (!tagVideos.isEmpty()) {
+            Video first = tagVideos.get(0);
+            // 确保有缩略图
+            if (first.getThumbPath() == null || !new File(first.getThumbPath()).exists()) {
+                File mediaFile = new File(first.getFilePath());
+                if (mediaFile.exists()) {
+                    String thumbPath = thumbnailService.generateSync(mediaFile, first.getTitle());
+                    if (thumbPath != null) {
+                        first.setThumbPath(thumbPath);
+                        videoMapper.updateFilePath(first.getId(), first.getFilePath(), thumbPath, first.getFileSize());
+                    }
+                }
+            }
+            tag.setCoverVideoId(first.getId());
+            tagMapper.updateCover(tag.getId(), first.getId(), null);
+            log.info("Tag '{}' cover fixed to video {}", tag.getName(), first.getId());
+        } else {
+            // 标签下没有视频，清除封面
+            tag.setCoverVideoId(null);
+            tagMapper.updateCover(tag.getId(), null, null);
+            log.info("Tag '{}' has no videos, cover cleared", tag.getName());
+        }
     }
 }

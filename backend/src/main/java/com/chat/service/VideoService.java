@@ -484,14 +484,12 @@ boolean dominated = false;
                     else result.restoredImage++;
                 }
             }
-            // 更新路径为当前实际路�
-String oldPath = existing.getFilePath();
+            // 更新路径为当前实际路径
+            String oldPath = existing.getFilePath();
             if (oldPath == null || !oldPath.equals(absPath)) {
                 existing.setFilePath(absPath);
-                // 缩略图改用后台异步生成，不阻塞扫描
-                if ("video".equals(type)) {
-                    thumbnailService.enqueue(existing);
-                } else {
+                // 图片直接用原图作为缩略图
+                if (!"video".equals(type)) {
                     existing.setThumbPath(absPath);
                 }
                 existing.setFileSize(file.length());
@@ -515,10 +513,12 @@ String oldPath = existing.getFilePath();
         video.setFileSize(file.length());
         video.setPendingHashtag(hashtag);
         video.setSource("folder");
+        // 图片直接用原图作为缩略图
+        if (!"video".equals(type)) {
+            video.setThumbPath(absPath);
+        }
         videoMapper.insert(video);
 
-        // 缩略图改用后台异步生成，不阻塞扫描（视频和图片都生成缩略图）
-        thumbnailService.enqueue(video);
         addImportNotification(video);
 
         // 加入内存索引，防止同一次扫描中重复插入

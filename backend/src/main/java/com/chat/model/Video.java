@@ -77,7 +77,11 @@ public class Video {
     }
 
     public String getThumbUrl() {
-        if (id == null || thumbPath == null) return null;
+        if (id == null) return null;
+        // 视频类型始终返回缩略图URL，首次访问时会按需生成
+        if ("video".equals(type)) return "/api/stream/thumb/" + id;
+        // 图片类型需要有缩略图路径
+        if (thumbPath == null) return null;
         return "/api/stream/thumb/" + id;
     }
 }

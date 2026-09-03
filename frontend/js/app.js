@@ -124,13 +124,6 @@
                 state.page = savedFilter.page || 1;
             }
         }
-        // 恢复轮播模式的页码
-        if (state.viewMode === 'carousel') {
-            var savedCarouselPage = parseInt(localStorage.getItem(userKey('carouselPage')));
-            if (savedCarouselPage > 1) {
-                state.page = savedCarouselPage;
-            }
-        }
         // 恢复视图显示/隐藏（如果正在恢复详情页则不覆盖）
         var restoringDetail = !!localStorage.getItem(userKey('detailVideoId'));
         if (!restoringDetail) {
@@ -1311,64 +1304,6 @@
         var mode = state.viewMode;
         var listView = document.getElementById('listView');
 
-        // 轮播模式特殊处理：需要外层wrapper结构
-        if (mode === 'carousel') {
-            listView.classList.add('carousel-active');
-            var savedCarouselPage = parseInt(localStorage.getItem(userKey('carouselPage'))) || 1;
-            var savedCarouselIndex = parseInt(localStorage.getItem(userKey('carouselIndex'))) || 0;
-            _carouselPageItems = items.slice(0, 20);
-            _carouselAllItems = _carouselPageItems.slice();
-
-            if (_carouselLoopMode === 'page') {
-                // 全部循环模式：加载到保存的页码
-                renderCarouselMode(grid, _carouselPageItems, 0);
-                if (savedCarouselPage > 1) {
-                    loadAllCarouselPages(2, savedCarouselPage, function () {
-                        var track = document.getElementById('carouselTrack');
-                        if (!track) return;
-                        var existingCount = track.querySelectorAll('.carousel-card').length;
-                        for (var i = existingCount; i < _carouselAllItems.length; i++) {
-                            appendCardToDOMSimple(_carouselAllItems[i], i);
-                        }
-                        // 恢复位置
-                        _carouselGlobalIndex = Math.min(savedCarouselIndex, _carouselAllItems.length - 1);
-                        var card = track.querySelector('.carousel-card[data-idx="' + _carouselGlobalIndex + '"]');
-                        if (card) {
-                            card.classList.add('active');
-                            var viewport = document.getElementById('carouselViewport');
-                            if (viewport) viewport.scrollLeft = card.offsetLeft - viewport.offsetWidth / 2 + card.offsetWidth / 2;
-                        }
-                        var timeEl = document.getElementById('carouselTime');
-                        var fill = document.getElementById('carouselFill');
-                        var pageInfoEl = document.getElementById('carouselPageInfo');
-                        if (timeEl) timeEl.textContent = (_carouselGlobalIndex + 1) + ' / ' + _carouselAllItems.length;
-                        if (fill) {
-                            var pct = _carouselAllItems.length > 1 ? (_carouselGlobalIndex / (_carouselAllItems.length - 1)) * 100 : 0;
-                            fill.style.width = Math.min(100, pct) + '%';
-                        }
-                        if (pageInfoEl) {
-                            var pg = Math.floor(_carouselGlobalIndex / 20) + 1;
-                            pageInfoEl.textContent = '第' + pg + ' / ' + state.totalPages + ' 页 (共' + _carouselAllItems.length + ' 条)';
-                        }
-                    });
-                }
-            } else {
-                // 单页循环模式：索引是页内索引，限制在0-19
-                var savedPage = parseInt(localStorage.getItem(userKey('carouselPage'))) || 1;
-                var savedIdx = parseInt(localStorage.getItem(userKey('carouselIndex'))) || 0;
-                // 如果保存的是全局索引，转换为页内索引
-                var pageIdx = savedIdx;
-                if (savedIdx >= 20) {
-                    // 可能是全局索引，取模得到页内索引
-                    pageIdx = savedIdx % 20;
-                }
-                pageIdx = Math.min(pageIdx, 19);
-                if (pageIdx < 0) pageIdx = 0;
-                renderCarouselMode(grid, _carouselPageItems, pageIdx);
-            }
-            return;
-        }
-
         // 非轮播模式：恢复
         listView.classList.remove('carousel-active');
         var pagination = grid.parentElement.querySelector('.pagination');
@@ -1635,871 +1570,6 @@
             '</div></div>';
     }
 
-    // 轮播焦点模式
-    var _carouselDuration = parseInt(localStorage.getItem('carouselDuration')) || 3;
-    var _carouselLoopMode = localStorage.getItem('carouselLoopMode') || 'single';
-    var _carouselAutoPlay = localStorage.getItem('carouselAutoPlay') !== 'false';
-    var _carouselAllItems = []; // 所有已加载的项目（跨页累积）
-    var _carouselPageItems = []; // 当前页的项目
-    var _carouselGlobalIndex = 0; // 全局索引
-    var _carouselTimer = null;
-    var _carouselLoading = false;
-    var _carouselDragState = { dragging: false, startX: 0, scrollLeft: 0 };
-
-    // 简单追加卡片到DOM
-    function appendCardToDOMSimple(v, idx) {
-        var isImage = v.type === 'image';
-        var thumbSrc = isImage ? (v.thumbUrl ? API + v.thumbUrl : API + v.url) : (v.thumbUrl ? API + v.thumbUrl : '');
-        var title = esc(v.title || '');
-        var likedCls = v.liked ? ' liked' : '';
-        var badge = isImage ? '<span class="card-badge card-badge-img carousel-badge">图片</span>' : (v.duration ? '<span class="card-badge carousel-badge">' + esc(v.duration) + '</span>' : '');
-
-        var cardHtml = '<div class="carousel-card' + '" data-id="' + v.id + '" data-idx="' + idx + '" data-type="' + (isImage ? 'image' : 'video') + '">' +
-            '<div class="carousel-thumb-wrap"><img class="carousel-thumb" src="' + thumbSrc + '" data-idx="' + idx + '" onerror="this.outerHTML=\'<div class=carousel-thumb-empty>?</div>\'"/>' + badge +
-            '<div class="carousel-info">' +
-                '<div class="carousel-title" onclick="event.stopPropagation();window._openDetail(' + v.id + ')" style="cursor:pointer">' + title + '</div>' +
-                '<div class="carousel-meta"><span>' + fmtSize(v.fileSize) + '</span>' +
-                '<button class="carousel-like-btn' + likedCls + '" onclick="event.stopPropagation();window._like(' + v.id + ',this)">' +
-                    '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>' +
-                    '<span>' + (v.likeCount || 0) + '</span></button></div>' +
-            '</div></div></div>';
-        var track = document.getElementById('carouselTrack');
-        if (track) track.insertAdjacentHTML('beforeend', cardHtml);
-    }
-
-    // 串行加载多页，完成后回调
-    function loadAllCarouselPages(fromPage, toPage, callback) {
-        if (fromPage > toPage) { callback(); return; }
-        var params = new URLSearchParams({ page: fromPage, pageSize: 20 });
-        if (state.keyword) params.set('keyword', state.keyword);
-        if (state.type) params.set('type', state.type);
-        if (state.category) params.set('category', state.category);
-        var url = state.currentView === 'likes' ? '/api/likes' : '/api/videos';
-        api('GET', url + '?' + params).then(function (r) {
-            if (r.code === 200 && r.data) {
-                state.totalPages = r.data.totalPages;
-                var newItems = r.data.list || [];
-                var existingIds = new Set(_carouselAllItems.map(function(v) { return v.id; }));
-                newItems.forEach(function (v) {
-                    if (!existingIds.has(v.id)) _carouselAllItems.push(v);
-                });
-                state.page = fromPage;
-            }
-            if (fromPage < toPage) {
-                loadAllCarouselPages(fromPage + 1, toPage, callback);
-            } else {
-                callback();
-            }
-        }).catch(function () { callback(); });
-    }
-
-    function renderCarouselMode(grid, items, restoreIndex) {
-        var pagination = grid.parentElement.querySelector('.pagination');
-        if (pagination) pagination.style.display = 'none';
-
-        _carouselPageItems = items.slice(0, 20);
-        // 单页模式只用当前页，跨页模式累积
-        if (_carouselLoopMode === 'single') {
-            _carouselAllItems = items.slice();
-        } else {
-            var existingIds = new Set(_carouselAllItems.map(function(v) { return v.id; }));
-            items.forEach(function (v) {
-                if (!existingIds.has(v.id)) _carouselAllItems.push(v);
-            });
-        }
-
-        var displayItems = _carouselLoopMode === 'single' ? _carouselPageItems : _carouselAllItems;
-        var hasMore = false; // 单页循环不显示加载更多按钮
-
-        var cardsHtml = displayItems.map(function (v, i) {
-            var isImage = v.type === 'image';
-            var thumbSrc = isImage ? (v.thumbUrl ? API + v.thumbUrl : API + v.url) : (v.thumbUrl ? API + v.thumbUrl : '');
-            var title = esc(v.title || '');
-            var likedCls = v.liked ? ' liked' : '';
-            var badge = isImage ? '<span class="card-badge card-badge-img carousel-badge">图片</span>' : (v.duration ? '<span class="card-badge carousel-badge">' + esc(v.duration) + '</span>' : '');
-            var mediaHtml = '<img class="carousel-thumb" src="' + thumbSrc + '" data-idx="' + i + '" onerror="this.outerHTML=\'<div class=carousel-thumb-empty>?</div>\'"/>';
-            return '<div class="carousel-card" data-id="' + v.id + '" data-idx="' + i + '" data-type="' + (isImage ? 'image' : 'video') + '">' +
-                '<div class="carousel-thumb-wrap">' + mediaHtml + badge +
-                '<div class="carousel-info">' +
-                    '<div class="carousel-title" onclick="event.stopPropagation();window._openDetail(' + v.id + ')" style="cursor:pointer">' + title + '</div>' +
-                    '<div class="carousel-meta">' +
-                        '<span>' + fmtSize(v.fileSize) + '</span>' +
-                        '<button class="carousel-like-btn' + likedCls + '" onclick="event.stopPropagation();window._like(' + v.id + ',this)">' +
-                            '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>' +
-                            '<span>' + (v.likeCount || 0) + '</span>' +
-                        '</button>' +
-                    '</div>' +
-                '</div>' +
-                '</div></div>';
-        }).join('');
-
-        var loadMoreHtml = hasMore ? '<div class="carousel-load-more" id="carouselLoadMore"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/><path d="M15 18l6-6-6-6" opacity="0.5"/></svg><span>加载下一页</span></div>' : '';
-
-        var currentPage = state.page || 1;
-        var currentDisplayItems = _carouselLoopMode === 'single' ? _carouselPageItems : _carouselAllItems;
-        var totalItems = currentDisplayItems.length;
-        var initialIndex = (restoreIndex !== undefined && restoreIndex >= 0 && restoreIndex < totalItems) ? restoreIndex : 0;
-
-        grid.className = 'carousel-wrapper';
-        grid.innerHTML =
-            '<div class="carousel-viewport" id="carouselViewport"><div class="carousel-track" id="carouselTrack">' + cardsHtml + loadMoreHtml + '</div></div>' +
-            '<div class="carousel-controls">' +
-                '<button class="carousel-btn" id="carouselFirst" title="第一个"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 19l-7-7 7-7M18 19l-7-7 7-7"/></svg></button>' +
-                '<button class="carousel-btn" id="carouselPrev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>' +
-                '<div class="carousel-progress" id="carouselProgress"><div class="carousel-progress-fill" id="carouselFill"></div></div>' +
-                '<div class="carousel-info-group">' +
-                    '<div class="carousel-time" id="carouselTime" onclick="window._carouselPagePopup(event)" title="点击选择位置">' + (initialIndex + 1) + ' / ' + totalItems + '</div>' +
-                    '<div class="carousel-page-nav">' +
-                        '<button class="carousel-page-btn' + (currentPage <= 1 ? ' disabled' : '') + '" id="carouselPrevPage" title="上一页"' + (currentPage <= 1 ? ' disabled' : '') + '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg></button>' +
-                        '<div class="carousel-page-info" id="carouselPageInfo" onclick="window._carouselPageSelect(event)" style="cursor:pointer" title="点击选择页码">第' + currentPage + ' / ' + state.totalPages + ' 页 (共' + totalItems + ' 条)</div>' +
-                        '<button class="carousel-page-btn' + (currentPage >= state.totalPages ? ' disabled' : '') + '" id="carouselNextPage" title="下一页"' + (currentPage >= state.totalPages ? ' disabled' : '') + '><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>' +
-                    '</div>' +
-                '</div>' +
-                '<select class="carousel-select" id="carouselDuration" title="切换间隔">' +
-                    '<option value="2">2秒</option>' +
-                    '<option value="3"' + (_carouselDuration === 3 ? ' selected' : '') + '>3秒</option>' +
-                    '<option value="5"' + (_carouselDuration === 5 ? ' selected' : '') + '>5秒</option>' +
-                    '<option value="8"' + (_carouselDuration === 8 ? ' selected' : '') + '>8秒</option>' +
-                    '<option value="10"' + (_carouselDuration === 10 ? ' selected' : '') + '>10秒</option>' +
-                    '<option value="15"' + (_carouselDuration === 15 ? ' selected' : '') + '>15秒</option>' +
-                    '<option value="30"' + (_carouselDuration === 30 ? ' selected' : '') + '>30秒</option>' +
-                '</select>' +
-                '<button class="carousel-loop-btn' + (_carouselLoopMode === 'page' ? ' active' : '') + '" id="carouselLoopBtn" title="切换循环模式">' + (_carouselLoopMode === 'single' ? '单页循环' : '全部循环') + '</button>' +
-                '<button class="carousel-auto-btn' + (_carouselAutoPlay ? ' active' : '') + '" id="carouselAutoBtn" title="自动播放">AUTO</button>' +
-                '<button class="carousel-btn" id="carouselNext"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg></button>' +
-                '<button class="carousel-btn" id="carouselLast" title="最后一个"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 5l7 7-7 7M6 5l7 7-7 7"/></svg></button>' +
-            '</div>';
-
-        initCarouselLogic(grid, restoreIndex);
-    }
-
-    function initCarouselLogic(wrapper, restoreIndex) {
-        var track = wrapper.querySelector('#carouselTrack');
-        var viewport = wrapper.querySelector('#carouselViewport');
-        var progress = wrapper.querySelector('#carouselProgress');
-        var fill = wrapper.querySelector('#carouselFill');
-        var timeEl = wrapper.querySelector('#carouselTime');
-        var prevBtn = wrapper.querySelector('#carouselPrev');
-        var nextBtn = wrapper.querySelector('#carouselNext');
-        var autoBtn = wrapper.querySelector('#carouselAutoBtn');
-        var durationSelect = wrapper.querySelector('#carouselDuration');
-        var loopBtn = wrapper.querySelector('#carouselLoopBtn');
-        var loadMoreBtn = wrapper.querySelector('#carouselLoadMore');
-
-        var displayItems = _carouselLoopMode === 'single' ? _carouselPageItems : _carouselAllItems;
-        var cards = Array.from(track.querySelectorAll('.carousel-card'));
-
-        // 恢复保存的位置（单页模式下索引不能超过当前页数量）
-        var currentDisplayItems = _carouselLoopMode === 'single' ? _carouselPageItems : _carouselAllItems;
-        var maxIndex = currentDisplayItems.length - 1;
-        if (restoreIndex !== undefined && restoreIndex >= 0 && restoreIndex <= maxIndex) {
-            _carouselGlobalIndex = restoreIndex;
-        } else {
-            var savedIndex = parseInt(localStorage.getItem(userKey('carouselIndex')));
-            if (!isNaN(savedIndex) && savedIndex >= 0 && savedIndex <= maxIndex) {
-                _carouselGlobalIndex = savedIndex;
-            } else {
-                _carouselGlobalIndex = Math.min(_carouselGlobalIndex, maxIndex);
-            }
-        }
-        if (_carouselGlobalIndex < 0) _carouselGlobalIndex = 0;
-
-        // 激活卡片并加载视频
-        function activateCard(idx, instant) {
-            // 确保索引在有效范围内
-            var currentItems = _carouselLoopMode === 'single' ? _carouselPageItems : _carouselAllItems;
-            idx = Math.max(0, Math.min(idx, currentItems.length - 1));
-            var oldIdx = _carouselGlobalIndex;
-            _carouselGlobalIndex = idx;
-
-            // 暂停旧视频
-            var oldCard = track.querySelector('.carousel-card[data-idx="' + oldIdx + '"]');
-            if (oldCard) {
-                oldCard.classList.remove('active');
-                var oldVid = oldCard.querySelector('video');
-                if (oldVid && !oldVid.paused) oldVid.pause();
-            }
-
-            // 激活新卡片
-            var newCard = track.querySelector('.carousel-card[data-idx="' + idx + '"]');
-            if (!newCard) return;
-            newCard.classList.add('active');
-
-            // 如果是视频，替换缩略图为video元素并播放
-            if (newCard.dataset.type === 'video') {
-                var existingVid = newCard.querySelector('video');
-                if (!existingVid) {
-                    var currentItems = _carouselLoopMode === 'single' ? _carouselPageItems : _carouselAllItems;
-                    var item = currentItems[idx];
-                    if (item) {
-                        var thumbWrap = newCard.querySelector('.carousel-thumb-wrap');
-                        var oldThumb = thumbWrap.querySelector('.carousel-thumb');
-                        if (oldThumb) {
-                            var vid = document.createElement('video');
-                            vid.className = 'carousel-thumb';
-                            vid.muted = true;
-                            vid.loop = true;
-                            vid.src = API + item.url;
-                            oldThumb.replaceWith(vid);
-                        }
-                    }
-                }
-                var vid2 = newCard.querySelector('video');
-                if (vid2) vid2.play().catch(function(){});
-            }
-
-            // 居中
-            var cardLeft = newCard.offsetLeft;
-            var cardW = newCard.offsetWidth;
-            var viewW = viewport.offsetWidth;
-            viewport.scrollTo({ left: cardLeft - viewW / 2 + cardW / 2, behavior: instant ? 'instant' : 'smooth' });
-
-            // 更新进度条
-            var displayItems2 = _carouselLoopMode === 'single' ? _carouselPageItems : _carouselAllItems;
-            var pct = displayItems2.length > 1 ? (idx / (displayItems2.length - 1)) * 100 : 0;
-            fill.style.width = Math.min(100, pct) + '%';
-            timeEl.textContent = (idx + 1) + ' / ' + displayItems2.length;
-
-            // 更新页码信息
-            var pageInfoEl = wrapper.querySelector('#carouselPageInfo');
-            if (pageInfoEl) {
-                if (_carouselLoopMode === 'page') {
-                    // 全部循环模式：根据索引计算当前页码
-                    var currentPg = Math.floor(idx / 20) + 1;
-                    pageInfoEl.textContent = '第' + currentPg + ' / ' + state.totalPages + ' 页 (共' + displayItems2.length + ' 条)';
-                    // 更新上一页/下一页按钮状态
-                    var prevPageBtn2 = wrapper.querySelector('#carouselPrevPage');
-                    var nextPageBtn2 = wrapper.querySelector('#carouselNextPage');
-                    if (prevPageBtn2) {
-                        prevPageBtn2.disabled = currentPg <= 1;
-                        prevPageBtn2.classList.toggle('disabled', currentPg <= 1);
-                    }
-                    if (nextPageBtn2) {
-                        nextPageBtn2.disabled = currentPg >= state.totalPages;
-                        nextPageBtn2.classList.toggle('disabled', currentPg >= state.totalPages);
-                    }
-                } else {
-                    // 单页循环模式：显示state.page
-                    var currentPg2 = state.page || 1;
-                    pageInfoEl.textContent = '第' + currentPg2 + ' / ' + state.totalPages + ' 页 (共' + displayItems2.length + ' 条)';
-                    // 更新上一页/下一页按钮状态
-                    var prevPageBtn3 = wrapper.querySelector('#carouselPrevPage');
-                    var nextPageBtn3 = wrapper.querySelector('#carouselNextPage');
-                    if (prevPageBtn3) {
-                        prevPageBtn3.disabled = currentPg2 <= 1;
-                        prevPageBtn3.classList.toggle('disabled', currentPg2 <= 1);
-                    }
-                    if (nextPageBtn3) {
-                        nextPageBtn3.disabled = currentPg2 >= state.totalPages;
-                        nextPageBtn3.classList.toggle('disabled', currentPg2 >= state.totalPages);
-                    }
-                }
-            }
-
-            // 检查预加载
-            checkPreload();
-
-            // 保存位置（保存全局索引和页码）
-            if (_carouselLoopMode === 'page') {
-                // 全部循环：idx就是全局索引
-                localStorage.setItem(userKey('carouselIndex'), idx);
-                localStorage.setItem(userKey('carouselPage'), Math.floor(idx / 20) + 1);
-            } else {
-                // 单页循环：idx是页内索引，转换为全局索引保存
-                var globalIdx = (state.page - 1) * 20 + idx;
-                localStorage.setItem(userKey('carouselIndex'), globalIdx);
-                localStorage.setItem(userKey('carouselPage'), state.page);
-            }
-        }
-
-        // 点击卡片
-        track.addEventListener('click', function (e) {
-            if (_carouselDragState.dragged) return;
-            if (e.target.closest('.carousel-title') || e.target.closest('.carousel-like-btn') || e.target.closest('.carousel-load-more')) return;
-            var card = e.target.closest('.carousel-card');
-            if (card) {
-                activateCard(parseInt(card.dataset.idx));
-                resetAuto();
-            }
-        });
-
-        // 悬停播放视频
-        track.addEventListener('mouseenter', function (e) {
-            var card = e.target.closest('.carousel-card');
-            if (card && card.dataset.type === 'video' && !card.classList.contains('active')) {
-                var vid = card.querySelector('video');
-                if (!vid) {
-                    var idx = parseInt(card.dataset.idx);
-                    var item = displayItems[idx];
-                    if (item) {
-                        var thumbWrap = card.querySelector('.carousel-thumb-wrap');
-                        var oldThumb = thumbWrap.querySelector('.carousel-thumb');
-                        if (oldThumb && oldThumb.tagName !== 'VIDEO') {
-                            vid = document.createElement('video');
-                            vid.className = 'carousel-thumb';
-                            vid.muted = true;
-                            vid.loop = true;
-                            vid.src = API + item.url;
-                            oldThumb.replaceWith(vid);
-                        }
-                    }
-                }
-                if (vid) { vid.muted = true; vid.play().catch(function(){}); }
-            }
-        }, true);
-        track.addEventListener('mouseleave', function (e) {
-            var card = e.target.closest('.carousel-card');
-            if (card && !card.classList.contains('active')) {
-                var vid = card.querySelector('video');
-                if (vid && !vid.paused) vid.pause();
-            }
-        }, true);
-
-        // 拖拽滚动
-        viewport.addEventListener('mousedown', function (e) {
-            _carouselDragState.dragging = true;
-            _carouselDragState.dragged = false;
-            _carouselDragState.startX = e.pageX - viewport.offsetLeft;
-            _carouselDragState.scrollLeft = viewport.scrollLeft;
-            viewport.classList.add('dragging');
-        });
-        viewport.addEventListener('mousemove', function (e) {
-            if (!_carouselDragState.dragging) return;
-            e.preventDefault();
-            var x = e.pageX - viewport.offsetLeft;
-            var walk = (x - _carouselDragState.startX) * 1.5;
-            if (Math.abs(walk) > 5) _carouselDragState.dragged = true;
-            viewport.scrollLeft = _carouselDragState.scrollLeft - walk;
-        });
-        var stopDrag = function () {
-            if (_carouselDragState.dragging) {
-                _carouselDragState.dragging = false;
-                viewport.classList.remove('dragging');
-                // 找到最接近中心的卡片并激活
-                if (_carouselDragState.dragged) {
-                    var center = viewport.scrollLeft + viewport.offsetWidth / 2;
-                    var closest = 0, minDist = Infinity;
-                    cards.forEach(function (c) {
-                        var cCenter = c.offsetLeft + c.offsetWidth / 2;
-                        var dist = Math.abs(cCenter - center);
-                        if (dist < minDist) { minDist = dist; closest = parseInt(c.dataset.idx); }
-                    });
-                    activateCard(closest);
-                    resetAuto();
-                }
-            }
-        };
-        viewport.addEventListener('mouseup', stopDrag);
-        viewport.addEventListener('mouseleave', stopDrag);
-
-        // 按钮
-        var firstBtn = wrapper.querySelector('#carouselFirst');
-        var lastBtn = wrapper.querySelector('#carouselLast');
-        if (firstBtn) {
-            firstBtn.addEventListener('click', function () { activateCard(0); resetAuto(); });
-        }
-        if (lastBtn) {
-            lastBtn.addEventListener('click', function () {
-                var items = _carouselLoopMode === 'single' ? _carouselPageItems : _carouselAllItems;
-                activateCard(items.length - 1);
-                resetAuto();
-            });
-        }
-        prevBtn.addEventListener('click', function () { activateCard(Math.max(0, _carouselGlobalIndex - 1)); resetAuto(); });
-        nextBtn.addEventListener('click', function () {
-            var items = _carouselLoopMode === 'single' ? _carouselPageItems : _carouselAllItems;
-            activateCard(Math.min(items.length - 1, _carouselGlobalIndex + 1));
-            resetAuto();
-        });
-        autoBtn.addEventListener('click', function () {
-            _carouselAutoPlay = !_carouselAutoPlay;
-            localStorage.setItem('carouselAutoPlay', _carouselAutoPlay);
-            autoBtn.classList.toggle('active', _carouselAutoPlay);
-            if (_carouselAutoPlay) startAuto(); else stopAuto();
-        });
-
-        // 上一页/下一页按钮
-        var prevPageBtn = wrapper.querySelector('#carouselPrevPage');
-        var nextPageBtn = wrapper.querySelector('#carouselNextPage');
-        if (prevPageBtn) {
-            prevPageBtn.addEventListener('click', function () {
-                var currentPage = state.page || 1;
-                if (currentPage > 1) {
-                    window._carouselGoPage(currentPage - 1);
-                    // 全部循环模式下重置定时器（单页模式会重新渲染，自动重置）
-                    if (_carouselAutoPlay && _carouselLoopMode === 'page') resetAuto();
-                }
-            });
-        }
-        if (nextPageBtn) {
-            nextPageBtn.addEventListener('click', function () {
-                var currentPage = state.page || 1;
-                if (currentPage < state.totalPages) {
-                    window._carouselGoPage(currentPage + 1);
-                    // 全部循环模式下重置定时器（单页模式会重新渲染，自动重置）
-                    if (_carouselAutoPlay && _carouselLoopMode === 'page') resetAuto();
-                }
-            });
-        }
-
-        durationSelect.addEventListener('change', function () { _carouselDuration = parseInt(this.value); localStorage.setItem('carouselDuration', _carouselDuration); resetAuto(); });
-
-        loopBtn.addEventListener('click', function () {
-            var oldMode = _carouselLoopMode;
-            _carouselLoopMode = _carouselLoopMode === 'single' ? 'page' : 'single';
-            localStorage.setItem('carouselLoopMode', _carouselLoopMode);
-            loopBtn.textContent = _carouselLoopMode === 'single' ? '单页循环' : '全部循环';
-            loopBtn.classList.toggle('active', _carouselLoopMode === 'page');
-
-            // 记住当前卡片和视口位置
-            var currentCard = track.querySelector('.carousel-card.active');
-            var currentId = currentCard ? parseInt(currentCard.dataset.id) : null;
-            var viewport = document.getElementById('carouselViewport');
-            var savedScrollLeft = viewport ? viewport.scrollLeft : 0;
-
-            // 计算当前在全局中的真实索引
-            var savedGlobalIdx = _carouselGlobalIndex;
-            if (oldMode === 'single') {
-                var pg = state.page || 1;
-                savedGlobalIdx = (pg - 1) * 20 + _carouselGlobalIndex;
-            }
-
-            if (_carouselLoopMode === 'page') {
-                // 切换到全部循环：加载所有页
-                _carouselAllItems = [];
-                loadAllCarouselPages(1, state.totalPages, function () {
-                    // 清空track重新渲染所有卡片
-                    var trackEl = document.getElementById('carouselTrack');
-                    if (trackEl) {
-                        trackEl.innerHTML = '';
-                        for (var i = 0; i < _carouselAllItems.length; i++) {
-                            appendCardToDOMSimple(_carouselAllItems[i], i);
-                        }
-                    }
-                    // 恢复位置
-                    _carouselGlobalIndex = Math.min(savedGlobalIdx, _carouselAllItems.length - 1);
-                    if (_carouselGlobalIndex < 0) _carouselGlobalIndex = 0;
-                    // 激活卡片并滚动
-                    var card = trackEl.querySelector('.carousel-card[data-idx="' + _carouselGlobalIndex + '"]');
-                    if (card) {
-                        card.classList.add('active');
-                        if (viewport) viewport.scrollLeft = card.offsetLeft - viewport.offsetWidth / 2 + card.offsetWidth / 2;
-                    }
-                    // 更新显示
-                    timeEl.textContent = (_carouselGlobalIndex + 1) + ' / ' + _carouselAllItems.length;
-                    var pg2 = Math.floor(_carouselGlobalIndex / 20) + 1;
-                    var pageInfoEl = wrapper.querySelector('#carouselPageInfo');
-                    if (pageInfoEl) pageInfoEl.textContent = '第' + pg2 + ' / ' + state.totalPages + ' 页 (共' + _carouselAllItems.length + ' 条)';
-                    var pct = _carouselAllItems.length > 1 ? (_carouselGlobalIndex / (_carouselAllItems.length - 1)) * 100 : 0;
-                    fill.style.width = Math.min(100, pct) + '%';
-                });
-            } else {
-                // 切换到单页循环
-                var page = Math.floor(savedGlobalIdx / 20) + 1;
-                state.page = page;
-                var pageStart = (page - 1) * 20;
-                var pageEnd = Math.min(pageStart + 20, _carouselAllItems.length);
-                _carouselPageItems = _carouselAllItems.slice(pageStart, pageEnd);
-                // 页内索引
-                _carouselGlobalIndex = savedGlobalIdx - pageStart;
-                if (_carouselGlobalIndex < 0) _carouselGlobalIndex = 0;
-                if (_carouselGlobalIndex >= _carouselPageItems.length) _carouselGlobalIndex = _carouselPageItems.length - 1;
-                // 清空track重新渲染当前页卡片
-                var trackEl2 = document.getElementById('carouselTrack');
-                if (trackEl2) {
-                    trackEl2.innerHTML = '';
-                    for (var j = 0; j < _carouselPageItems.length; j++) {
-                        appendCardToDOMSimple(_carouselPageItems[j], j);
-                    }
-                    // 激活卡片并滚动
-                    var card2 = trackEl2.querySelector('.carousel-card[data-idx="' + _carouselGlobalIndex + '"]');
-                    if (card2) {
-                        card2.classList.add('active');
-                        if (viewport) viewport.scrollLeft = card2.offsetLeft - viewport.offsetWidth / 2 + card2.offsetWidth / 2;
-                    }
-                }
-                // 更新显示
-                timeEl.textContent = (_carouselGlobalIndex + 1) + ' / ' + _carouselPageItems.length;
-                var pageInfoEl2 = wrapper.querySelector('#carouselPageInfo');
-                if (pageInfoEl2) pageInfoEl2.textContent = '第' + page + ' / ' + state.totalPages + ' 页 (共' + _carouselPageItems.length + ' 条)';
-                var pct2 = _carouselPageItems.length > 1 ? (_carouselGlobalIndex / (_carouselPageItems.length - 1)) * 100 : 0;
-                fill.style.width = Math.min(100, pct2) + '%';
-            }
-        });
-
-        // 点击页码选择页
-        timeEl.addEventListener('click', function (e) {
-            e.stopPropagation();
-            e.preventDefault();
-            var displayItems2 = _carouselLoopMode === 'single' ? _carouselPageItems : _carouselAllItems;
-            var totalPages = Math.ceil(displayItems2.length / 20);
-            if (totalPages <= 1) return;
-
-            // 关闭已有的弹窗
-            var existingPopup = document.getElementById('carouselPagePopup');
-            if (existingPopup) { existingPopup.remove(); return; }
-
-            var popup = document.createElement('div');
-            popup.className = 'carousel-page-popup';
-            popup.id = 'carouselPagePopup';
-            popup.onclick = function(ev) { ev.stopPropagation(); };
-            var html = '<div class="carousel-page-title">跳转到</div><div class="carousel-page-list">';
-            for (var p = 1; p <= totalPages; p++) {
-                var start = (p - 1) * 20 + 1;
-                var end = Math.min(p * 20, displayItems2.length);
-                var isCurrent = _carouselGlobalIndex >= (p - 1) * 20 && _carouselGlobalIndex < p * 20;
-                html += '<div class="carousel-page-item' + (isCurrent ? ' active' : '') + '" data-page="' + p + '">' + start + '-' + end + '</div>';
-            }
-            html += '</div>';
-            popup.innerHTML = html;
-
-            var rect = timeEl.getBoundingClientRect();
-            popup.style.position = 'fixed';
-            popup.style.top = Math.max(10, rect.top - totalPages * 32 - 16) + 'px';
-            popup.style.left = rect.left + 'px';
-            document.body.appendChild(popup);
-
-            popup.querySelectorAll('.carousel-page-item').forEach(function (item) {
-                item.addEventListener('click', function (ev) {
-                    ev.stopPropagation();
-                    var page = parseInt(item.dataset.page);
-                    var idx = (page - 1) * 20;
-                    activateCard(idx);
-                    resetAuto();
-                    popup.remove();
-                });
-            });
-
-            function closePopup(ev) {
-                if (!popup.contains(ev.target) && ev.target !== timeEl) {
-                    popup.remove();
-                    document.removeEventListener('click', closePopup);
-                }
-            }
-            setTimeout(function () { document.addEventListener('click', closePopup); }, 100);
-        });
-
-        // 进度条点击
-        progress.addEventListener('click', function (e) {
-            var rect = progress.getBoundingClientRect();
-            var pct = (e.clientX - rect.left) / rect.width;
-            var idx = Math.round(pct * (state.pageSize - 1));
-            activateCard(idx);
-            resetAuto();
-        });
-
-        // 滚轮
-        viewport.addEventListener('wheel', function (e) {
-            e.preventDefault();
-            activateCard(_carouselGlobalIndex + (e.deltaY > 0 ? 1 : -1));
-            resetAuto();
-        }, { passive: false });
-
-        // 追加卡片到DOM
-        function appendCardToDOM(v) {
-            var isImage = v.type === 'image';
-            var thumbSrc = isImage ? (v.thumbUrl ? API + v.thumbUrl : API + v.url) : (v.thumbUrl ? API + v.thumbUrl : '');
-            var title = esc(v.title || '');
-            var likedCls = v.liked ? ' liked' : '';
-            var badge = isImage ? '<span class="card-badge card-badge-img carousel-badge">图片</span>' : (v.duration ? '<span class="card-badge carousel-badge">' + esc(v.duration) + '</span>' : '');
-            var idx = _carouselAllItems.length - 1;
-            var cardHtml = '<div class="carousel-card" data-id="' + v.id + '" data-idx="' + idx + '" data-type="' + (isImage ? 'image' : 'video') + '">' +
-                '<div class="carousel-thumb-wrap"><img class="carousel-thumb" src="' + thumbSrc + '" data-idx="' + idx + '" onerror="this.outerHTML=\'<div class=carousel-thumb-empty>?</div>\'"/>' + badge +
-                '<div class="carousel-info">' +
-                    '<div class="carousel-title" onclick="event.stopPropagation();window._openDetail(' + v.id + ')" style="cursor:pointer">' + title + '</div>' +
-                    '<div class="carousel-meta"><span>' + fmtSize(v.fileSize) + '</span>' +
-                    '<button class="carousel-like-btn' + likedCls + '" onclick="event.stopPropagation();window._like(' + v.id + ',this)">' +
-                        '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>' +
-                        '<span>' + (v.likeCount || 0) + '</span></button></div>' +
-                '</div></div></div>';
-            var loadMoreEl = track.querySelector('.carousel-load-more');
-            if (loadMoreEl) {
-                loadMoreEl.insertAdjacentHTML('beforebegin', cardHtml);
-            } else {
-                track.insertAdjacentHTML('beforeend', cardHtml);
-            }
-        }
-
-        // 加载下一页（不重新渲染，只追加卡片）
-        var _carouselPreloaded = false;
-        function loadNextPage(callback) {
-            if (_carouselLoading || state.page >= state.totalPages) { if (callback) callback(); return; }
-            _carouselLoading = true;
-            state.page++;
-            var params = new URLSearchParams({ page: state.page, pageSize: 20 });
-            if (state.keyword) params.set('keyword', state.keyword);
-            if (state.type) params.set('type', state.type);
-            if (state.category) params.set('category', state.category);
-            var url = state.currentView === 'likes' ? '/api/likes' : '/api/videos';
-            api('GET', url + '?' + params).then(function (r) {
-                _carouselLoading = false;
-                _carouselPreloaded = false;
-                if (r.code === 200 && r.data) {
-                    state.totalPages = r.data.totalPages;
-                    var newItems = r.data.list || [];
-                    var existingIds = new Set(_carouselAllItems.map(function(v) { return v.id; }));
-                    newItems.forEach(function (v) {
-                        if (!existingIds.has(v.id)) {
-                            _carouselAllItems.push(v);
-                            appendCardToDOM(v);
-                        }
-                    });
-                    var displayItems3 = _carouselLoopMode === 'single' ? _carouselPageItems : _carouselAllItems;
-                    timeEl.textContent = (_carouselGlobalIndex + 1) + ' / ' + displayItems3.length;
-                    // 更新页码信息
-                    var pageInfoEl = wrapper.querySelector('#carouselPageInfo');
-                    if (pageInfoEl) {
-                        pageInfoEl.textContent = '第' + state.page + ' / ' + state.totalPages + ' 页 (共' + displayItems3.length + ' 条)';
-                    }
-                }
-                if (callback) callback();
-            });
-        }
-
-        // 预加载检查：距离末尾5个时提前加载
-        function checkPreload() {
-            if (_carouselLoopMode !== 'page') return;
-            if (_carouselLoading || _carouselPreloaded) return;
-            if (state.page >= state.totalPages) return;
-            var displayItems2 = _carouselAllItems;
-            var remaining = displayItems2.length - _carouselGlobalIndex - 1;
-            if (remaining <= 5) {
-                _carouselPreloaded = true;
-                loadNextPage();
-            }
-        }
-
-        // 使用事件委托处理加载更多按钮
-        track.addEventListener('click', function (e) {
-            var btn = e.target.closest('.carousel-load-more');
-            if (btn) {
-                e.stopPropagation();
-                loadNextPage();
-            }
-        });
-
-        // 自动播放
-        function nextSlide() {
-            var displayItems2 = _carouselLoopMode === 'single' ? _carouselPageItems : _carouselAllItems;
-            var nextIdx = _carouselGlobalIndex + 1;
-            if (nextIdx >= displayItems2.length) {
-                if (_carouselLoopMode === 'page') {
-                    if (state.page < state.totalPages) {
-                        // 等加载完再继续
-                        if (_carouselLoading) return;
-                        loadNextPage(function () {
-                            activateCard(_carouselGlobalIndex + 1);
-                        });
-                        return;
-                    }
-                    nextIdx = 0;
-                } else {
-                    nextIdx = 0;
-                }
-            }
-            activateCard(nextIdx);
-            checkPreload();
-        }
-
-        function startAuto() { stopAuto(); _carouselTimer = setInterval(nextSlide, _carouselDuration * 1000); }
-        function stopAuto() { if (_carouselTimer) { clearInterval(_carouselTimer); _carouselTimer = null; } }
-        function resetAuto() { if (_carouselAutoPlay) { stopAuto(); startAuto(); } }
-
-        viewport.addEventListener('mouseenter', function () { if (!_carouselDragState.dragging) stopAuto(); });
-        viewport.addEventListener('mouseleave', function () { if (_carouselAutoPlay && !_carouselDragState.dragging) startAuto(); });
-
-        // 初始化（瞬时定位，不播放动画）
-        activateCard(_carouselGlobalIndex, true);
-        if (_carouselAutoPlay) startAuto();
-    }
-
-    // === 各模式初始化函数 ===
-
-    // 轮播焦点模式初始化
-    var carouselAutoTimer = null;
-    var carouselCurrentIndex = 0;
-    var carouselVideoTimer = null;
-
-    function initCarouselMode() {
-        var grid = document.getElementById('videoGrid');
-        var cards = Array.from(grid.querySelectorAll('.carousel-card'));
-        if (cards.length === 0) return;
-
-        carouselCurrentIndex = Math.floor(cards.length / 2);
-
-        // 添加统一进度条
-        var existingBar = grid.parentElement.querySelector('.carousel-progress-bar');
-        if (existingBar) existingBar.remove();
-        var barWrap = document.createElement('div');
-        barWrap.className = 'carousel-progress-bar';
-        barWrap.innerHTML = '<div class="carousel-progress-track"><div class="carousel-progress-fill"></div><div class="carousel-progress-thumb"></div></div><div class="carousel-progress-time"><span class="carousel-time-current"></span><span class="carousel-time-info"></span></div>';
-        grid.parentElement.appendChild(barWrap);
-
-        var track = barWrap.querySelector('.carousel-progress-track');
-        var fill = barWrap.querySelector('.carousel-progress-fill');
-        var thumb = barWrap.querySelector('.carousel-progress-thumb');
-        var timeCurrent = barWrap.querySelector('.carousel-time-current');
-        var timeInfo = barWrap.querySelector('.carousel-time-info');
-
-        // 居中滚动到指定卡片
-        function scrollToCard(index) {
-            var card = cards[index];
-            if (!card) return;
-            var container = grid;
-            var cardCenter = card.offsetLeft + card.offsetWidth / 2;
-            var containerCenter = container.offsetWidth / 2;
-            container.scrollTo({ left: cardCenter - containerCenter, behavior: 'smooth' });
-        }
-
-        // 更新进度条（视频进度或轮播位置）
-        function updateProgress() {
-            var activeCard = cards[carouselCurrentIndex];
-            if (!activeCard) return;
-
-            if (activeCard.dataset.type === 'video') {
-                var vid = activeCard.querySelector('video');
-                if (vid && vid.duration && !isNaN(vid.duration)) {
-                    var pct = (vid.currentTime / vid.duration) * 100;
-                    fill.style.width = pct + '%';
-                    thumb.style.left = pct + '%';
-                    timeCurrent.textContent = formatDuration(vid.currentTime) + ' / ' + formatDuration(vid.duration);
-                    timeInfo.textContent = (carouselCurrentIndex + 1) + ' / ' + cards.length;
-                    return;
-                }
-            }
-            // 图片或视频无时长：显示轮播位置
-            var posPct = cards.length > 1 ? (carouselCurrentIndex / (cards.length - 1)) * 100 : 0;
-            fill.style.width = posPct + '%';
-            thumb.style.left = posPct + '%';
-            timeCurrent.textContent = '';
-            timeInfo.textContent = (carouselCurrentIndex + 1) + ' / ' + cards.length;
-        }
-
-        // 更新轮播状态
-        function updateCarousel(index, noScroll) {
-            carouselCurrentIndex = Math.max(0, Math.min(cards.length - 1, index));
-
-            // 停止旧视频进度更新
-            if (carouselVideoTimer) { clearInterval(carouselVideoTimer); carouselVideoTimer = null; }
-
-            cards.forEach(function (c, i) {
-                c.classList.toggle('active', i === carouselCurrentIndex);
-                if (i !== carouselCurrentIndex) {
-                    var vid = c.querySelector('video');
-                    if (vid && !vid.paused) vid.pause();
-                }
-            });
-
-            var activeCard = cards[carouselCurrentIndex];
-            if (activeCard && activeCard.dataset.type === 'video') {
-                var vid = activeCard.querySelector('video');
-                if (vid) {
-                    if (!vid.src && vid.dataset.src) vid.src = vid.dataset.src;
-                    vid.play().catch(function(){});
-                    // 视频进度实时更新
-                    carouselVideoTimer = setInterval(updateProgress, 200);
-                }
-            }
-
-            if (!noScroll) scrollToCard(carouselCurrentIndex);
-            updateProgress();
-        }
-
-        // 点击卡片切换
-        cards.forEach(function (card, i) {
-            card.addEventListener('click', function () {
-                updateCarousel(i);
-                resetCarouselAuto();
-            });
-            // 悬停播放视频
-            card.addEventListener('mouseenter', function () {
-                if (card.dataset.type === 'video') {
-                    var vid = card.querySelector('video');
-                    if (vid) {
-                        if (!vid.src && vid.dataset.src) vid.src = vid.dataset.src;
-                        vid.play().catch(function(){});
-                    }
-                }
-            });
-            card.addEventListener('mouseleave', function () {
-                if (card.dataset.type === 'video' && !card.classList.contains('active')) {
-                    var vid = card.querySelector('video');
-                    if (vid && !vid.paused) vid.pause();
-                }
-            });
-        });
-
-        // 进度条拖拽
-        var dragging = false;
-        function seekFromX(e) {
-            var rect = track.getBoundingClientRect();
-            var pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
-            var activeCard = cards[carouselCurrentIndex];
-
-            // 如果当前是视频且有进度，拖拽控制视频
-            if (activeCard && activeCard.dataset.type === 'video') {
-                var vid = activeCard.querySelector('video');
-                if (vid && vid.duration && !isNaN(vid.duration)) {
-                    vid.currentTime = pct * vid.duration;
-                    updateProgress();
-                    return;
-                }
-            }
-            // 否则控制轮播位置
-            var idx = Math.round(pct * (cards.length - 1));
-            updateCarousel(idx);
-        }
-
-        track.addEventListener('mousedown', function (e) {
-            dragging = true;
-            seekFromX(e);
-            stopCarouselAuto();
-            document.addEventListener('mousemove', onMove);
-            document.addEventListener('mouseup', onUp);
-        });
-        function onMove(e) { if (dragging) seekFromX(e); }
-        function onUp() {
-            dragging = false;
-            document.removeEventListener('mousemove', onMove);
-            document.removeEventListener('mouseup', onUp);
-            startCarouselAuto();
-        }
-
-        // 鼠标滚轮切换
-        grid.parentElement.addEventListener('wheel', function (e) {
-            e.preventDefault();
-            var delta = e.deltaY > 0 ? 1 : -1;
-            updateCarousel(carouselCurrentIndex + delta);
-            resetCarouselAuto();
-        }, { passive: false });
-
-        // 自动滚动
-        function startCarouselAuto() {
-            stopCarouselAuto();
-            carouselAutoTimer = setInterval(function () {
-                updateCarousel(carouselCurrentIndex + 1 >= cards.length ? 0 : carouselCurrentIndex + 1);
-            }, 3000);
-        }
-        function stopCarouselAuto() {
-            if (carouselAutoTimer) { clearInterval(carouselAutoTimer); carouselAutoTimer = null; }
-        }
-        function resetCarouselAuto() {
-            stopCarouselAuto();
-            startCarouselAuto();
-        }
-
-        // 鼠标悬停暂停自动滚动
-        grid.parentElement.addEventListener('mouseenter', stopCarouselAuto);
-        grid.parentElement.addEventListener('mouseleave', startCarouselAuto);
-
-        // 初始化
-        grid.style.overflowX = 'auto';
-        grid.style.scrollSnapType = 'none';
-        updateCarousel(carouselCurrentIndex);
-        startCarouselAuto();
-    }
-
-    // 蜂巢模式初始化
     // 3D卡片墙动画初始化
     function initWall3DAnimations() {
         var grid = document.getElementById('videoGrid');
@@ -2522,7 +1592,7 @@
     var galleryViewerLoading = false;
     var galleryViewerPage = 1;
     var gallerySlideshowTimer = null;
-    var gallerySlideshowInterval = parseInt(localStorage.getItem('gallerySlideshowInterval')) || 3;
+    var gallerySlideshowInterval = parseInt(localStorage.getItem('gallerySlideshowInterval')) || 2;
     var gallerySlideshowTransition = localStorage.getItem('gallerySlideshowTransition') || 'fade';
     var galleryTotalImageCount = 0;
 
@@ -2550,7 +1620,7 @@
         api('GET', '/api/videos?pageSize=1&type=image' + (state.keyword ? '&keyword=' + encodeURIComponent(state.keyword) : '') + (state.category ? '&category=' + encodeURIComponent(state.category) : '')).then(function(r) {
             if (r.code === 200 && r.data) {
                 galleryTotalImageCount = r.data.total || galleryViewerItems.length;
-                var counter = document.getElementById('galleryViewerCounter');
+                var counter = document.getElementById('gvBarCounter');
                 if (counter) counter.textContent = (galleryViewerIndex + 1) + ' / ' + galleryTotalImageCount;
             }
         });
@@ -2573,43 +1643,40 @@
             '<div class="gallery-viewer-content">' +
                 '<img id="galleryViewerImage" class="gallery-viewer-image gallery-transition-' + gallerySlideshowTransition + '" src="' + API + '/api/stream/video/' + id + '"/>' +
             '</div>' +
-            '<div class="gallery-viewer-actions">' +
-                '<button class="gallery-viewer-action-btn" id="galleryViewerLikeBtn" onclick="event.stopPropagation();window._galleryViewerLike()" title="点赞">' +
+            '<div class="gallery-viewer-bar">' +
+                '<button class="gv-bar-btn" onclick="window._galleryViewerPrev()" title="上一张">' +
+                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>' +
+                '</button>' +
+                '<div class="gv-bar-progress" id="gvBarProgress"><div class="gv-bar-progress-fill" id="gvBarFill"></div></div>' +
+                '<div class="gv-bar-info">' +
+                    '<span class="gv-bar-counter" id="gvBarCounter">' + (galleryViewerIndex + 1) + ' / ' + galleryTotalImageCount + '</span>' +
+                '</div>' +
+                '<button class="gv-bar-btn" id="galleryViewerLikeBtn" onclick="event.stopPropagation();window._galleryViewerLike()" title="点赞">' +
                     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>' +
                 '</button>' +
-                '<button class="gallery-viewer-action-btn" onclick="event.stopPropagation();window._galleryViewerDetail()" title="详情">' +
+                '<button class="gv-bar-btn" onclick="event.stopPropagation();window._galleryViewerDetail()" title="详情">' +
                     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>' +
                 '</button>' +
-                '<button class="gallery-viewer-action-btn" id="galleryViewerLocateBtn" onclick="event.stopPropagation();window._galleryViewerLocate()" title="定位到页面">' +
+                '<button class="gv-bar-btn" id="galleryViewerLocateBtn" onclick="event.stopPropagation();window._galleryViewerLocate()" title="定位到页面">' +
                     '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>' +
                 '</button>' +
-                '<div class="slideshow-wrapper" onmouseenter="window._showSlideshowSettings()" onmouseleave="window._hideSlideshowSettings()">' +
-                    '<button class="gallery-viewer-action-btn" id="galleryViewerSlideshowBtn" onclick="event.stopPropagation();window._galleryViewerToggleSlideshow()" title="幻灯片播放">' +
-                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>' +
-                    '</button>' +
-                    '<div class="gallery-viewer-slideshow-settings" id="gallerySlideshowSettings">' +
-                        '<div class="slideshow-setting">' +
-                            '<select id="gallerySlideshowIntervalSelect" onchange="window._galleryViewerSetInterval(this.value)">' +
-                                '<option value="0">间隔</option>' +
-                                '<option value="2">2秒</option>' +
-                                '<option value="3"' + (gallerySlideshowInterval === 3 ? ' selected' : '') + '>3秒</option>' +
-                                '<option value="5">5秒</option>' +
-                                '<option value="8">8秒</option>' +
-                                '<option value="10">10秒</option>' +
-                            '</select>' +
-                        '</div>' +
-                        '<div class="slideshow-setting">' +
-                            '<select id="gallerySlideshowTransitionSelect" onchange="window._galleryViewerSetTransition(this.value)">' +
-                                '<option value="">动画</option>' +
-                                '<option value="fade"' + (gallerySlideshowTransition === 'fade' ? ' selected' : '') + '>淡入淡出</option>' +
-                                '<option value="slide">左右滑动</option>' +
-                                '<option value="zoom">缩放</option>' +
-                            '</select>' +
-                        '</div>' +
-                    '</div>' +
-                '</div>' +
-            '</div>' +
-            '<div class="gallery-viewer-counter"><span id="galleryViewerCounter">' + (galleryViewerIndex + 1) + ' / ' + galleryTotalImageCount + '</span></div>';
+                '<select class="gv-bar-select" id="gallerySlideshowIntervalSelect" onchange="window._galleryViewerSetInterval(this.value)" title="幻灯片间隔">' +
+                    '<option value="2"' + (gallerySlideshowInterval === 2 ? ' selected' : '') + '>2秒</option>' +
+                    '<option value="3"' + (gallerySlideshowInterval === 3 ? ' selected' : '') + '>3秒</option>' +
+                    '<option value="5">5秒</option>' +
+                    '<option value="8">8秒</option>' +
+                    '<option value="10">10秒</option>' +
+                '</select>' +
+                '<select class="gv-bar-select" id="gallerySlideshowTransitionSelect" onchange="window._galleryViewerSetTransition(this.value)" title="切换动画">' +
+                    '<option value="fade"' + (gallerySlideshowTransition === 'fade' ? ' selected' : '') + '>淡入淡出</option>' +
+                    '<option value="slide"' + (gallerySlideshowTransition === 'slide' ? ' selected' : '') + '>左右滑动</option>' +
+                    '<option value="zoom"' + (gallerySlideshowTransition === 'zoom' ? ' selected' : '') + '>缩放</option>' +
+                '</select>' +
+                '<button class="gv-bar-toggle' + (gallerySlideshowTimer ? ' active' : '') + '" id="galleryViewerSlideshowBtn" onclick="event.stopPropagation();window._galleryViewerToggleSlideshow()" title="幻灯片播放">AUTO</button>' +
+                '<button class="gv-bar-btn" onclick="window._galleryViewerNext()" title="下一张">' +
+                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>' +
+                '</button>' +
+            '</div>';
 
         document.body.appendChild(viewer);
         setTimeout(function () { viewer.classList.add('active'); }, 10);
@@ -2629,14 +1696,14 @@
                 viewerHideTimer = setTimeout(function () { viewer.classList.remove('controls-visible'); }, 300);
             });
         }
-        // 操作栏自身也保持显示
-        var viewerActions = viewer.querySelector('.gallery-viewer-actions');
-        if (viewerActions) {
-            viewerActions.addEventListener('mouseenter', function () {
+        // 底部操作栏自身也保持显示
+        var viewerBar = viewer.querySelector('.gallery-viewer-bar');
+        if (viewerBar) {
+            viewerBar.addEventListener('mouseenter', function () {
                 if (viewerHideTimer) clearTimeout(viewerHideTimer);
                 viewer.classList.add('controls-visible');
             });
-            viewerActions.addEventListener('mouseleave', showViewerControls);
+            viewerBar.addEventListener('mouseleave', showViewerControls);
         }
         // 打开时自动显示2秒
         showViewerControls();
@@ -2743,7 +1810,8 @@
     function updateGalleryViewerImage() {
         var id = galleryViewerItems[galleryViewerIndex];
         var img = document.getElementById('galleryViewerImage');
-        var counter = document.getElementById('galleryViewerCounter');
+        var counter = document.getElementById('gvBarCounter');
+        var fill = document.getElementById('gvBarFill');
         if (img) {
             img.classList.add('gallery-viewer-transition');
             setTimeout(function () {
@@ -2753,6 +1821,10 @@
         }
         var displayTotal = galleryTotalImageCount > galleryViewerItems.length ? galleryTotalImageCount : galleryViewerItems.length;
         if (counter) counter.textContent = (galleryViewerIndex + 1) + ' / ' + displayTotal;
+        if (fill) {
+            var pct = displayTotal > 1 ? ((galleryViewerIndex) / (displayTotal - 1)) * 100 : 0;
+            fill.style.width = Math.min(100, pct) + '%';
+        }
         api('POST', '/api/videos/' + id + '/view');
         // 更新点赞按钮状态
         updateGalleryViewerLikeBtn(id);
@@ -2863,7 +1935,7 @@
                     }
                 });
                 // 更新计数器
-                var counter = document.getElementById('galleryViewerCounter');
+                var counter = document.getElementById('gvBarCounter');
                 if (counter) counter.textContent = (galleryViewerIndex + 1) + ' / ' + galleryViewerItems.length;
                 if (callback) callback();
             }
@@ -3314,8 +2386,6 @@
 
     // === Detail Page ===
     var savedScrollPosition = 0;
-    var savedCarouselScroll = 0;
-    var savedCarouselIndex = 0;
     var detailSourceView = 'home'; // 详情页来源页面
 
     function openDetail(videoId) {
@@ -3324,12 +2394,6 @@
         localStorage.setItem(userKey('detailVideoId'), videoId);
         // 保存当前滚动位置
         savedScrollPosition = window.scrollY || document.documentElement.scrollTop;
-        // 轮播模式：保存视口滚动位置和当前索引
-        if (state.viewMode === 'carousel') {
-            var viewport = document.getElementById('carouselViewport');
-            if (viewport) savedCarouselScroll = viewport.scrollLeft;
-            savedCarouselIndex = _carouselGlobalIndex;
-        }
         // 隐藏所有其他视图
         document.getElementById('listView').style.display = 'none';
         document.getElementById('pendingView').style.display = 'none';
@@ -3923,24 +2987,7 @@
         stopDanmakuLoop('danmakuLayerDetail');
         // 恢复滚动位置（只有从详情页返回时才恢复）
         if (restoreScroll !== false) {
-            if (state.viewMode === 'carousel') {
-                // 轮播模式：恢复视口滚动位置
-                var viewport = document.getElementById('carouselViewport');
-                if (viewport) {
-                    viewport.scrollLeft = savedCarouselScroll;
-                }
-                // 恢复激活状态
-                _carouselGlobalIndex = savedCarouselIndex;
-                var track = document.getElementById('carouselTrack');
-                if (track) {
-                    var activeCard = track.querySelector('.carousel-card.active');
-                    if (activeCard) activeCard.classList.remove('active');
-                    var card = track.querySelector('.carousel-card[data-idx="' + savedCarouselIndex + '"]');
-                    if (card) card.classList.add('active');
-                }
-            } else {
-                window.scrollTo(0, savedScrollPosition);
-            }
+            window.scrollTo(0, savedScrollPosition);
         }
     }
 
@@ -6480,250 +5527,6 @@
     window._showSlideshowSettings = showSlideshowSettings;
     window._hideSlideshowSettings = hideSlideshowSettings;
     window.toggleGalleryModeMenu = toggleGalleryModeMenu;
-
-    // 轮播页码选择弹窗（全局函数）
-    window._carouselPagePopup = function(e) {
-        e.stopPropagation();
-        var displayItems = _carouselLoopMode === 'single' ? _carouselPageItems : _carouselAllItems;
-        var totalPages = Math.ceil(displayItems.length / 20);
-        if (totalPages <= 1) return;
-
-        var existing = document.getElementById('carouselPagePopup');
-        if (existing) { existing.remove(); return; }
-
-        var popup = document.createElement('div');
-        popup.className = 'carousel-page-popup';
-        popup.id = 'carouselPagePopup';
-        var html = '<div class="carousel-page-title">跳转到</div><div class="carousel-page-list">';
-        for (var p = 1; p <= totalPages; p++) {
-            var start = (p - 1) * 20 + 1;
-            var end = Math.min(p * 20, displayItems.length);
-            var isCurrent = _carouselGlobalIndex >= (p - 1) * 20 && _carouselGlobalIndex < p * 20;
-            html += '<div class="carousel-page-item' + (isCurrent ? ' active' : '') + '" onclick="window._carouselJumpPage(' + p + ')">' + start + '-' + end + '</div>';
-        }
-        html += '</div>';
-        popup.innerHTML = html;
-
-        var timeEl = document.getElementById('carouselTime');
-        var rect = timeEl.getBoundingClientRect();
-        popup.style.position = 'fixed';
-        popup.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
-        popup.style.left = (rect.left + rect.width / 2 - 50) + 'px';
-        document.body.appendChild(popup);
-
-        setTimeout(function() {
-            document.addEventListener('click', function close(ev) {
-                if (!popup.contains(ev.target)) {
-                    popup.remove();
-                    document.removeEventListener('click', close);
-                }
-            });
-        }, 50);
-    };
-
-    window._carouselJumpPage = function(page) {
-        var idx = (page - 1) * 20;
-        _carouselGlobalIndex = idx;
-        var popup = document.getElementById('carouselPagePopup');
-        if (popup) popup.remove();
-        // 触发activateCard
-        var viewport = document.getElementById('carouselViewport');
-        var track = document.getElementById('carouselTrack');
-        if (track && viewport) {
-            var card = track.querySelector('.carousel-card[data-idx="' + idx + '"]');
-            if (card) {
-                // 暂停旧视频
-                var oldActive = track.querySelector('.carousel-card.active');
-                if (oldActive) {
-                    oldActive.classList.remove('active');
-                    var oldVid = oldActive.querySelector('video');
-                    if (oldVid && !oldVid.paused) oldVid.pause();
-                }
-                card.classList.add('active');
-                var cardLeft = card.offsetLeft;
-                var cardW = card.offsetWidth;
-                var viewW = viewport.offsetWidth;
-                viewport.scrollTo({ left: cardLeft - viewW / 2 + cardW / 2, behavior: 'smooth' });
-                // 播放视频
-                if (card.dataset.type === 'video') {
-                    var vid = card.querySelector('video');
-                    if (vid) vid.play().catch(function(){});
-                }
-                // 更新进度条
-                var fill = document.getElementById('carouselFill');
-                var timeEl2 = document.getElementById('carouselTime');
-                if (fill && timeEl2) {
-                    var pct = displayItems.length > 1 ? (idx / (displayItems.length - 1)) * 100 : 0;
-                    fill.style.width = Math.min(100, pct) + '%';
-                    timeEl2.textContent = (idx + 1) + ' / ' + displayItems.length;
-                }
-            }
-        }
-        // 保存位置
-        localStorage.setItem(userKey('carouselIndex'), idx);
-    };
-
-    // 轮播页码选择弹窗（点击页码信息触发）
-    window._carouselPageSelect = function(e) {
-        e.stopPropagation();
-        var existing = document.getElementById('carouselPagePopup');
-        if (existing) { existing.remove(); return; }
-
-        var popup = document.createElement('div');
-        popup.className = 'carousel-page-popup';
-        popup.id = 'carouselPagePopup';
-        popup.style.maxHeight = '400px';
-        popup.style.overflowY = 'auto';
-        var html = '<div class="carousel-page-title">跳转到页码</div><div class="carousel-page-list">';
-        var total = state.totalPages || 1;
-        var current = state.page || 1;
-        // 显示所有页码
-        for (var p = 1; p <= total; p++) {
-            html += '<div class="carousel-page-item' + (p === current ? ' active' : '') + '" onclick="window._carouselGoPage(' + p + ')">第' + p + '页</div>';
-        }
-        html += '</div>';
-        popup.innerHTML = html;
-
-        var pageInfo = document.getElementById('carouselPageInfo');
-        var rect = pageInfo.getBoundingClientRect();
-        popup.style.position = 'fixed';
-        popup.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
-        popup.style.left = (rect.left + rect.width / 2 - 60) + 'px';
-        document.body.appendChild(popup);
-
-        setTimeout(function() {
-            document.addEventListener('click', function close(ev) {
-                if (!popup.contains(ev.target)) {
-                    popup.remove();
-                    document.removeEventListener('click', close);
-                }
-            });
-        }, 50);
-    };
-
-    // 跳转到指定页码
-    window._carouselGoPage = function(page) {
-        var popup = document.getElementById('carouselPagePopup');
-        if (popup) popup.remove();
-
-        if (page < 1 || page > state.totalPages) return;
-
-        if (_carouselLoopMode === 'page') {
-            // 全部循环模式：加载目标页并跳转
-            loadCarouselPageAndGo(page);
-        } else {
-            // 单页模式：需要重新加载数据
-            state.page = page;
-            localStorage.setItem(userKey('carouselPage'), page);
-            localStorage.setItem(userKey('carouselIndex'), 0);
-            if (state.currentView === 'likes') loadLikedVideos();
-            else loadVideos();
-        }
-    };
-
-    // 全部循环模式：加载指定页并跳转
-    function loadCarouselPageAndGo(targetPage) {
-        // 计算目标页在_allItems中的起始位置
-        var targetStartIdx = (targetPage - 1) * 20;
-
-        // 检查是否需要加载新页面
-        var currentLoadedCount = _carouselAllItems.length;
-        var neededCount = targetStartIdx + 20; // 目标页的最后一条索引+1
-
-        if (currentLoadedCount >= neededCount) {
-            // 目标页已加载，直接跳转
-            state.page = targetPage;
-            _carouselGlobalIndex = targetStartIdx;
-            goToCard(_carouselGlobalIndex);
-            return;
-        }
-
-        // 需要加载更多页
-        var fromPage = Math.ceil(currentLoadedCount / 20) + 1;
-        var toPage = targetPage;
-
-        // 逐页加载
-        function loadNext(pageNum) {
-            if (pageNum > toPage) {
-                // 加载完成，跳转
-                state.page = targetPage;
-                _carouselGlobalIndex = Math.min(targetStartIdx, _carouselAllItems.length - 1);
-                // 追加新卡片到DOM
-                var track = document.getElementById('carouselTrack');
-                if (track) {
-                    var existingCount = track.querySelectorAll('.carousel-card').length;
-                    for (var i = existingCount; i < _carouselAllItems.length; i++) {
-                        appendCardToDOMSimple(_carouselAllItems[i], i);
-                    }
-                }
-                goToCard(_carouselGlobalIndex);
-                return;
-            }
-
-            var params = new URLSearchParams({ page: pageNum, pageSize: 20 });
-            if (state.keyword) params.set('keyword', state.keyword);
-            if (state.type) params.set('type', state.type);
-            if (state.category) params.set('category', state.category);
-            var url = state.currentView === 'likes' ? '/api/likes' : '/api/videos';
-
-            api('GET', url + '?' + params).then(function (r) {
-                if (r.code === 200 && r.data) {
-                    state.totalPages = r.data.totalPages;
-                    var newItems = r.data.list || [];
-                    var existingIds = new Set(_carouselAllItems.map(function(v) { return v.id; }));
-                    newItems.forEach(function (v) {
-                        if (!existingIds.has(v.id)) _carouselAllItems.push(v);
-                    });
-                }
-                loadNext(pageNum + 1);
-            }).catch(function () {
-                loadNext(pageNum + 1);
-            });
-        }
-
-        loadNext(fromPage);
-    }
-
-    // 辅助函数：跳转到指定卡片
-    function goToCard(idx) {
-        var track = document.getElementById('carouselTrack');
-        var viewport = document.getElementById('carouselViewport');
-        if (track && viewport) {
-            var card = track.querySelector('.carousel-card[data-idx="' + idx + '"]');
-            if (card) {
-                var oldActive = track.querySelector('.carousel-card.active');
-                if (oldActive) oldActive.classList.remove('active');
-                card.classList.add('active');
-                viewport.scrollTo({ left: card.offsetLeft - viewport.offsetWidth / 2 + card.offsetWidth / 2, behavior: 'smooth' });
-            }
-        }
-        var displayItems = _carouselLoopMode === 'single' ? _carouselPageItems : _carouselAllItems;
-        var timeEl = document.getElementById('carouselTime');
-        var fill = document.getElementById('carouselFill');
-        var pageInfoEl = document.getElementById('carouselPageInfo');
-        if (timeEl) timeEl.textContent = (idx + 1) + ' / ' + displayItems.length;
-        if (fill) {
-            var pct = displayItems.length > 1 ? (idx / (displayItems.length - 1)) * 100 : 0;
-            fill.style.width = Math.min(100, pct) + '%';
-        }
-        if (pageInfoEl) {
-            var currentPg = _carouselLoopMode === 'page' ? Math.floor(idx / 20) + 1 : state.page;
-            pageInfoEl.textContent = '第' + currentPg + ' / ' + state.totalPages + ' 页 (共' + displayItems.length + ' 条)';
-            // 更新上一页/下一页按钮状态
-            var prevPageBtn = document.getElementById('carouselPrevPage');
-            var nextPageBtn = document.getElementById('carouselNextPage');
-            if (prevPageBtn) {
-                prevPageBtn.disabled = currentPg <= 1;
-                prevPageBtn.classList.toggle('disabled', currentPg <= 1);
-            }
-            if (nextPageBtn) {
-                nextPageBtn.disabled = currentPg >= state.totalPages;
-                nextPageBtn.classList.toggle('disabled', currentPg >= state.totalPages);
-            }
-        }
-        localStorage.setItem(userKey('carouselIndex'), idx);
-        localStorage.setItem(userKey('carouselPage'), state.page);
-    }
 
     window._showDeleteDialog = showDeleteDialog;
     window._showRenameDialog = showRenameDialog;

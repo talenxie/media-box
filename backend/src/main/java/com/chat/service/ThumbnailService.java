@@ -1,6 +1,8 @@
 package com.chat.service;
 
+import com.chat.mapper.TagMapper;
 import com.chat.mapper.VideoMapper;
+import com.chat.model.Tag;
 import com.chat.model.Video;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -23,6 +25,9 @@ public class ThumbnailService {
     @Resource
     private VideoMapper videoMapper;
 
+    @Resource
+    private TagMapper tagMapper;
+
     @Value("${chat.thumb-dir:./thumbnails}")
     private String thumbDir;
 
@@ -41,31 +46,82 @@ public class ThumbnailService {
 
     @PostConstruct
     public void init() {
-        worker = Executors.newSingleThreadExecutor(r -> {
+        worker = Executors.newFixedThreadPool(2, r -> {
             Thread t = new Thread(r, "thumb-worker");
             t.setDaemon(true);
             return t;
         });
         worker.submit(this::run);
+        // 延迟扫描缺失的缩略图和失效的标签封面，等待数据库就绪
+        worker.submit(() -> {
+            try { Thread.sleep(8000); } catch (InterruptedException e) { return; }
+            scanMissingThumbnails();
+            fixStaleTagCovers();
+        });
         log.info("ThumbnailService started, max={}MB, queue={}", thumbMaxMb, thumbQueueSize);
     }
 
-    /** 启动时扫描所有无缩略图的视频和图片，加入队列 */
+    /** 启动时扫描所有无缩略图的视频，加入队列（图片不加入，按需懒加载） */
     public void scanMissingThumbnails() {
         try {
             List<Video> allVideos = videoMapper.findAllNoLimit();
             int enqueued = 0;
             for (Video v : allVideos) {
-                if (v.getThumbPath() != null && new File(v.getThumbPath()).exists()) continue;
+                // 图片跳过，由streamThumb按需生成
+                if ("image".equals(v.getType())) continue;
+                // 视频：thumbPath为空或文件不存在时加入队列
+                String tp = v.getThumbPath();
+                if (tp != null && !tp.isEmpty() && new File(tp).exists()) continue;
                 if (generateQueue.offer(v)) enqueued++;
             }
             if (enqueued > 0) {
-                log.info("Startup scan: {} files missing thumbnails, queued for generation", enqueued);
+                log.info("Startup scan: {} videos need thumbnails, queued for generation", enqueued);
             } else {
-                log.info("Startup scan: all thumbnails up to date");
+                log.info("Startup scan: all video thumbnails up to date");
             }
         } catch (Exception e) {
             log.error("Startup thumbnail scan failed: {}", e.getMessage());
+        }
+    }
+
+    /** 判断视频/图片是否需要生成缩略图 */
+    private boolean needsThumbnail(Video v) {
+        String tp = v.getThumbPath();
+        // 没有thumbPath
+        if (tp == null || tp.isEmpty()) return true;
+        // thumbPath指向的文件不存在
+        if (!new File(tp).exists()) return true;
+        // 图片的thumbPath指向原图（需要生成缩略图）
+        if (v.getFilePath() != null && tp.equals(v.getFilePath())) return true;
+        return false;
+    }
+
+    /** 启动时修复所有指向不存在视频的标签封面 */
+    private void fixStaleTagCovers() {
+        try {
+            List<Tag> allTags = tagMapper.findAll();
+            int fixed = 0;
+            for (Tag tag : allTags) {
+                if (tag.getCoverVideoId() == null || tag.getCoverVideoId() == 0) continue;
+                Video coverVideo = videoMapper.findById(tag.getCoverVideoId());
+                if (coverVideo != null) continue;
+
+                log.info("Fixing stale tag cover: '{}' -> video {} not found", tag.getName(), tag.getCoverVideoId());
+                List<Video> tagVideos = videoMapper.findByHashtag(tag.getName(), 0, 1);
+                if (!tagVideos.isEmpty()) {
+                    Video first = tagVideos.get(0);
+                    tagMapper.updateCover(tag.getId(), first.getId(), null);
+                    log.info("Tag '{}' cover updated to video {}", tag.getName(), first.getId());
+                } else {
+                    tagMapper.updateCover(tag.getId(), null, null);
+                    log.info("Tag '{}' has no videos, cover cleared", tag.getName());
+                }
+                fixed++;
+            }
+            if (fixed > 0) log.info("Fixed {} stale tag covers", fixed);
+            else log.info("All tag covers are valid");
+        } catch (Exception e) {
+            log.error("Stale tag cover fix failed: {}", e.getMessage());
         }
     }
 
@@ -78,7 +134,7 @@ public class ThumbnailService {
     /** 扫描时调用：把视频/图片加入后台生成队列，不阻塞 */
     public void enqueue(Video video) {
         if (video == null || video.getId() == null) return;
-        if (video.getThumbPath() != null && new File(video.getThumbPath()).exists()) return;
+        if (!needsThumbnail(video)) return;
         boolean offered = generateQueue.offer(video);
         if (offered) {
             log.debug("Enqueued thumbnail for: {} (queue size: {})", video.getTitle(), generateQueue.size());
@@ -89,13 +145,19 @@ public class ThumbnailService {
 
     /** 按需生成：如果缩略图不存在，同步生成并返回路径（用于懒加载 fallback） */
     public String generateSync(File videoFile, String title) {
-        return doGenerate(videoFile, title);
+        log.info("generateSync called: file={}, exists={}", videoFile.getAbsolutePath(), videoFile.exists());
+        String result = doGenerate(videoFile, title);
+        if (result == null) {
+            log.warn("generateSync FAILED for: {} (ffmpeg={})", videoFile.getName(), findFfmpeg());
+        } else {
+            log.info("generateSync OK: {} -> {}", videoFile.getName(), result);
+        }
+        return result;
     }
 
     /** 检查缩略图是否存在 */
     public boolean hasThumbnail(Video video) {
-        if (video.getThumbPath() == null) return false;
-        return new File(video.getThumbPath()).exists();
+        return !needsThumbnail(video);
     }
 
     /** 清理孤立缩略图（视频已删除但缩略图还在） */
@@ -184,9 +246,8 @@ public class ThumbnailService {
         }
         log.info("Thumbnail worker started, ffmpeg={}", ffmpegPath);
 
-        // 启动时等待数据库就绪，然后扫描缺失的缩略图
+        // 等待数据库就绪
         try { Thread.sleep(5000); } catch (InterruptedException e) { return; }
-        scanMissingThumbnails();
 
         while (running.get()) {
             try {
@@ -218,8 +279,8 @@ public class ThumbnailService {
                 // 每生成10个检查一次容量
                 if (generateQueue.size() % 10 == 0) enforceLimit();
 
-                // 生成后暂停2秒，大幅降低CPU/IO占用，避免前端卡顿
-                try { Thread.sleep(2000); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
+                // 生成后暂停500ms，降低CPU/IO占用
+                try { Thread.sleep(500); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
 
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
@@ -252,6 +313,7 @@ public class ThumbnailService {
         File thumbFile = new File(thumbDirFile, thumbName);
         if (thumbFile.exists()) return thumbFile.getAbsolutePath();
         try {
+            log.info("Generating image thumbnail: {} -> {}", imageFile.getName(), thumbFile.getAbsolutePath());
             ProcessBuilder pb = new ProcessBuilder(
                 ffmpegPath, "-y", "-i", imageFile.getAbsolutePath(),
                 "-vf", "scale='min(480,iw)':-1", "-q:v", "5",
@@ -259,17 +321,31 @@ public class ThumbnailService {
             );
             pb.redirectErrorStream(true);
             Process p = pb.start();
-            p.waitFor();
+            boolean finished = p.waitFor(30, TimeUnit.SECONDS);
+            if (!finished) {
+                log.warn("Image thumbnail generation timeout: {}", imageFile.getName());
+                p.destroyForcibly();
+                return null;
+            }
+            if (p.exitValue() != 0) {
+                log.warn("Image thumbnail ffmpeg failed: exitCode={}, file={}", p.exitValue(), imageFile.getName());
+            }
         } catch (Exception e) {
-            log.warn("Image thumbnail generation failed: {}", imageFile.getName());
+            log.warn("Image thumbnail generation failed: {} - {}", imageFile.getName(), e.getMessage());
             return null;
+        }
+        if (!thumbFile.exists()) {
+            log.warn("Image thumbnail file not created: {} (input exists={})", thumbFile.getAbsolutePath(), imageFile.exists());
         }
         return thumbFile.exists() ? thumbFile.getAbsolutePath() : null;
     }
 
     private String doGenerate(File videoFile, String title) {
         String ffmpegPath = findFfmpeg();
-        if (ffmpegPath == null) return null;
+        if (ffmpegPath == null) {
+            log.warn("doGenerate: ffmpeg not found, cannot generate thumbnail for: {}", videoFile.getName());
+            return null;
+        }
 
         // 图片文件用ffmpeg缩放生成缩略图
         if (isImageFile(videoFile)) {
@@ -426,9 +502,18 @@ public class ThumbnailService {
             Process p = pb.start();
             drainOutput(p);
             boolean finished = p.waitFor(15, TimeUnit.SECONDS);
-            if (!finished) { p.destroyForcibly(); return false; }
-            return p.exitValue() == 0 && outputFile.exists();
+            if (!finished) {
+                log.warn("extractFrame timeout at {}s for: {}", timestamp, videoFile.getName());
+                p.destroyForcibly();
+                return false;
+            }
+            boolean success = p.exitValue() == 0 && outputFile.exists();
+            if (!success) {
+                log.warn("extractFrame failed at {}s: exitCode={}, outputExists={}", timestamp, p.exitValue(), outputFile.exists());
+            }
+            return success;
         } catch (Exception e) {
+            log.warn("extractFrame exception: {}", e.getMessage());
             return false;
         }
     }
@@ -515,6 +600,9 @@ public class ThumbnailService {
                 return line.trim();
             }
         } catch (Exception ignored) {}
+
+        log.warn("findFfmpeg: ffmpeg not found! config={}, localPath={}, cwd={}",
+                ffmpegPath, localPath, new File(".").getAbsolutePath());
         return null;
     }
 }

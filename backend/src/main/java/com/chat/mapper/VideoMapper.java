@@ -38,6 +38,7 @@ public interface VideoMapper {
     int countAutoTagged();
     List<String> findPendingTags();
     List<Video> findByPendingTag(@Param("tag") String tag, @Param("offset") int offset, @Param("limit") int limit);
+    List<Video> findByHashtag(@Param("tag") String tag, @Param("offset") int offset, @Param("limit") int limit);
     int countByPendingTag(@Param("tag") String tag);
     int confirmPendingTag(@Param("id") Long id, @Param("tag") String tag);
     int rejectPendingTag(@Param("id") Long id, @Param("tag") String tag);
