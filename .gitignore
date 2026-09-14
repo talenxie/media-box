@@ -16,6 +16,11 @@ dump.rdb
 # Maven 构建产物
 backend/target/
 
+# 发布文件
+release/
+dist/
+dist.zip
+
 # 工具二进制（ffmpeg 等）
 backend/tools/
 

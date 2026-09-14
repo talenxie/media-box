@@ -28,10 +28,63 @@
     };
 
     // 每个页面独立的过滤状态和页码（首页和点赞页互不干扰，同页面内所有展示模式共享）
-    var filterState = {
-        'home': { type: '', category: '', keyword: '', page: 1 },
-        'likes': { type: '', category: '', keyword: '', page: 1 }
+    var filterState = JSON.parse(localStorage.getItem(userKey('filterState')) || 'null') || {
+        'home': { type: '', category: '', keyword: '', page: {} },
+        'likes': { type: '', category: '', keyword: '', page: {} }
     };
+    // 清理 filterState，确保 page 中只存数字，防止循环引用
+    Object.keys(filterState).forEach(function (v) {
+        var entry = filterState[v];
+        if (!entry || typeof entry !== 'object') { filterState[v] = { type: '', category: '', keyword: '', page: {} }; return; }
+        if (typeof entry.type !== 'string') entry.type = '';
+        if (typeof entry.category !== 'string') entry.category = '';
+        if (typeof entry.keyword !== 'string') entry.keyword = '';
+        if (typeof entry.page === 'number' || !entry.page || typeof entry.page !== 'object') {
+            entry.page = {};
+        } else {
+            Object.keys(entry.page).forEach(function (mode) {
+                if (typeof entry.page[mode] !== 'number') delete entry.page[mode];
+            });
+        }
+    });
+
+    function getPage(view, mode) {
+        if (!filterState[view]) return 1;
+        var p = filterState[view].page;
+        if (typeof p === 'object') {
+            var v = p[mode];
+            return (typeof v === 'number') ? v : 1;
+        }
+        return (typeof p === 'number') ? p : 1;
+    }
+
+    function setPage(view, mode, val) {
+        if (!filterState[view]) filterState[view] = { type: '', category: '', keyword: '', page: {} };
+        if (typeof filterState[view].page !== 'object') filterState[view].page = {};
+        filterState[view].page[mode] = val;
+    }
+
+    function saveFilterState() {
+        var clean = {};
+        Object.keys(filterState).forEach(function (view) {
+            var entry = filterState[view];
+            if (!entry || typeof entry !== 'object') return;
+            var safeEntry = {
+                type: typeof entry.type === 'string' ? entry.type : '',
+                category: typeof entry.category === 'string' ? entry.category : '',
+                keyword: typeof entry.keyword === 'string' ? entry.keyword : '',
+                page: {}
+            };
+            if (entry.page && typeof entry.page === 'object') {
+                Object.keys(entry.page).forEach(function (mode) {
+                    var val = entry.page[mode];
+                    if (typeof val === 'number') safeEntry.page[mode] = val;
+                });
+            }
+            clean[view] = safeEntry;
+        });
+        localStorage.setItem(userKey('filterState'), JSON.stringify(clean));
+    }
 
     // === API ===
     var isRefreshing = false;
@@ -121,7 +174,7 @@
                 state.type = savedFilter.type || '';
                 state.category = savedFilter.category || '';
                 state.keyword = savedFilter.keyword || '';
-                state.page = savedFilter.page || 1;
+                state.page = getPage(savedView, state.viewMode);
             }
         }
         // 恢复视图显示/隐藏（如果正在恢复详情页则不覆盖）
@@ -180,7 +233,9 @@
 
         // 保存当前页面的过滤状态和页码
         if (previousView === 'home' || previousView === 'likes') {
-            filterState[previousView] = { type: state.type, category: state.category, keyword: state.keyword, page: state.page };
+            filterState[previousView] = { type: state.type, category: state.category, keyword: state.keyword, page: filterState[previousView] ? filterState[previousView].page : {} };
+            setPage(previousView, state.viewMode, state.page);
+            saveFilterState();
         }
 
         previousView = view;
@@ -193,7 +248,7 @@
             state.type = saved.type;
             state.category = saved.category;
             state.keyword = saved.keyword;
-            state.page = saved.page || 1;
+            state.page = getPage(view, state.viewMode);
             document.getElementById('searchInput').value = state.keyword;
             var rightInput = document.getElementById('searchInputRight');
             if (rightInput) rightInput.value = state.keyword;
@@ -345,8 +400,17 @@
     }
 
     function switchMode(mode) {
+        // 保存当前模式的页码
+        if (state.currentView === 'home' || state.currentView === 'likes') {
+            setPage(state.currentView, state.viewMode, state.page);
+            saveFilterState();
+        }
         state.viewMode = mode;
         localStorage.setItem(userKey('viewMode'), mode);
+        // 恢复新模式的页码
+        if (state.currentView === 'home' || state.currentView === 'likes') {
+            state.page = getPage(state.currentView, mode);
+        }
         // 更新下拉菜单状态
         var menu = document.getElementById('galleryModeMenu');
         if (menu) { menu.classList.remove('show'); _removeGalleryOutside(); }
@@ -367,8 +431,20 @@
 
     function updateViewMode() {
         var grid = document.getElementById('videoGrid');
-        var grid = document.getElementById('videoGrid');
         grid.classList.toggle('feed-mode', state.viewMode === 'feed');
+
+        // 同步模式按钮图标
+        var btn = document.getElementById('galleryModeBtn');
+        var menu = document.getElementById('galleryModeMenu');
+        if (btn && menu) {
+            var activeItem = menu.querySelector('[data-mode="' + state.viewMode + '"]');
+            if (activeItem) {
+                btn.innerHTML = activeItem.querySelector('svg').outerHTML;
+            }
+            menu.querySelectorAll('.gallery-mode-item').forEach(function (item) {
+                item.classList.toggle('active', item.dataset.mode === state.viewMode);
+            });
+        }
 
         // 设置布局模式
         var appLayout = document.querySelector('.app-layout');
@@ -657,15 +733,17 @@
         state.page = 1;
         // 保存当前页面的过滤状态
         if (state.currentView === 'home' || state.currentView === 'likes') {
-            filterState[state.currentView] = { type: state.type, category: state.category, keyword: state.keyword, page: state.page };
-        }
-        renderCategoryFilter();
+            filterState[state.currentView] = { type: state.type, category: state.category, keyword: state.keyword, page: filterState[state.currentView] ? filterState[state.currentView].page : {} };
+            setPage(state.currentView, state.viewMode, 1);
+            saveFilterState();
+        }        renderCategoryFilter();
         if (state.currentView === 'likes') loadLikedVideos();
         else loadVideos();
     }
 
     // === Videos ===
     function loadVideos() {
+        if (typeof state.page !== 'number') state.page = 1;
         var pageSize = state.viewMode === 'feed' ? 14 : (state.viewMode === 'gallery' ? 21 : state.pageSize);
         var params = new URLSearchParams({ page: state.page, pageSize: pageSize });
         if (state.keyword) params.set('keyword', state.keyword);
@@ -683,6 +761,7 @@
     }
 
     function loadLikedVideos() {
+        if (typeof state.page !== 'number') state.page = 1;
         var pageSize = state.viewMode === 'gallery' ? 21 : state.pageSize;
         var params = new URLSearchParams({ page: state.page, pageSize: pageSize });
         if (state.keyword) params.set('keyword', state.keyword);
@@ -1892,9 +1971,11 @@
             if (state.currentView === 'likes') loadLikedVideos();
             else loadVideos();
         }
-        // 滚动到对应卡片位置
-        setTimeout(function () {
-            var card = document.querySelector('.gallery-card[data-id="' + id + '"]');
+        // 等待卡片渲染完成后滚动定位
+        function scrollToCard(retries) {
+            var card = document.querySelector('.gallery-card[data-id="' + id + '"]') ||
+                       document.querySelector('[data-id="' + id + '"]') ||
+                       document.querySelector('[data-video-id="' + id + '"]');
             if (card) {
                 card.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 card.style.outline = '2px solid var(--accent)';
@@ -1903,8 +1984,11 @@
                     card.style.outline = '';
                     card.style.outlineOffset = '';
                 }, 2000);
+            } else if (retries > 0) {
+                setTimeout(function () { scrollToCard(retries - 1); }, 300);
             }
-        }, 300);
+        }
+        setTimeout(function () { scrollToCard(10); }, 100);
         toast('已定位到第' + pageNum + '页');
     }
 
@@ -3099,7 +3183,6 @@
         var pageSize = state.viewMode === 'gallery' ? 21 : state.pageSize;
         var itemIndex = _modalVideoList.indexOf(_modalCurrentId);
         if (itemIndex === -1) return;
-        // 计算视频在第几页（需要加上前面图片的偏移）
         var pageNum = Math.floor(itemIndex / pageSize) + 1;
         closeModal();
         if (pageNum !== state.page) {
@@ -3107,8 +3190,10 @@
             if (state.currentView === 'likes') loadLikedVideos();
             else loadVideos();
         }
-        setTimeout(function () {
-            var card = document.querySelector('.gallery-card[data-id="' + _modalCurrentId + '"]');
+        function scrollToCard(retries) {
+            var card = document.querySelector('.gallery-card[data-id="' + _modalCurrentId + '"]') ||
+                       document.querySelector('[data-id="' + _modalCurrentId + '"]') ||
+                       document.querySelector('[data-video-id="' + _modalCurrentId + '"]');
             if (card) {
                 card.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 card.style.outline = '2px solid var(--accent)';
@@ -3117,8 +3202,11 @@
                     card.style.outline = '';
                     card.style.outlineOffset = '';
                 }, 2000);
+            } else if (retries > 0) {
+                setTimeout(function () { scrollToCard(retries - 1); }, 300);
             }
-        }, 300);
+        }
+        setTimeout(function () { scrollToCard(10); }, 100);
         toast('已定位到第' + pageNum + '页');
     }
 
@@ -4485,14 +4573,17 @@
             document.getElementById('pendingView').style.display = 'none';
             document.getElementById('tagMgrView').style.display = 'none';
             document.getElementById('listView').style.display = '';
-            filterState['home'] = { type: state.type, category: state.category, keyword: state.keyword, page: 1 };
+            filterState['home'] = { type: state.type, category: state.category, keyword: state.keyword, page: filterState['home'] ? filterState['home'].page : {} };
+            setPage('home', state.viewMode, 1);
+            saveFilterState();
             loadVideos();
             return;
         }
         // 保存当前页面的搜索关键词
         if (state.currentView === 'home' || state.currentView === 'likes') {
             filterState[state.currentView].keyword = state.keyword;
-            filterState[state.currentView].page = 1;
+            setPage(state.currentView, state.viewMode, 1);
+            saveFilterState();
         }
         // 非首页/点赞页搜索时跳转到首页
         if (state.currentView !== 'home' && state.currentView !== 'likes') {
@@ -4520,7 +4611,8 @@
         if (clearBtn) clearBtn.style.visibility = 'hidden';
         if (state.currentView === 'home' || state.currentView === 'likes') {
             filterState[state.currentView].keyword = '';
-            filterState[state.currentView].page = 1;
+            setPage(state.currentView, state.viewMode, 1);
+            saveFilterState();
         }
         if (state.currentView === 'likes') loadLikedVideos();
         else loadVideos();
@@ -4567,7 +4659,9 @@
         state.page = 1;
         // 保存到过滤状态
         if (state.currentView === 'home' || state.currentView === 'likes') {
-            filterState[state.currentView] = { type: state.type, category: state.category, keyword: tag, page: 1 };
+            filterState[state.currentView] = { type: state.type, category: state.category, keyword: tag, page: filterState[state.currentView] ? filterState[state.currentView].page : {} };
+            setPage(state.currentView, state.viewMode, 1);
+            saveFilterState();
         }
         loadVideos();
         window.scrollTo({ top: 0 });
@@ -4575,9 +4669,9 @@
     function goPage(p) {
         if (p < 1 || p > state.totalPages) return;
         state.page = p;
-        // 保存页码到过滤状态
         if (state.currentView === 'home' || state.currentView === 'likes') {
-            filterState[state.currentView].page = p;
+            setPage(state.currentView, state.viewMode, p);
+            saveFilterState();
         }
         if (state.currentView === 'likes') loadLikedVideos();
         else loadVideos();
