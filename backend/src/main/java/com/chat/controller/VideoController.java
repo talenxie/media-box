@@ -441,6 +441,13 @@ public class VideoController {
                 else stats[0]++;
             }
         }
+        // 合并 Tag 表中的空标签（没有视频关联的）
+        List<Tag> dbTags = tagMapper.findAll();
+        for (Tag t : dbTags) {
+            if (!tagStats.containsKey(t.getName())) {
+                tagStats.put(t.getName(), new int[]{0, 0});
+            }
+        }
         List<Map<String, Object>> result = new ArrayList<>();
         tagStats.forEach((name, stats) -> {
             Map<String, Object> item = new LinkedHashMap<>();
@@ -451,6 +458,19 @@ public class VideoController {
             result.add(item);
         });
         return Result.ok(result);
+    }
+
+    @PostMapping("/tags")
+    public Result<?> createTag(@RequestBody Map<String, String> body) {
+        String name = body.get("name");
+        if (name == null || name.trim().isEmpty()) return Result.error("标签名不能为空");
+        name = name.trim();
+        Tag existing = tagMapper.findByName(name);
+        if (existing != null) return Result.error("标签已存在");
+        Tag tag = new Tag();
+        tag.setName(name);
+        tagMapper.insert(tag);
+        return Result.ok("创建成功");
     }
 
     @PostMapping("/tags/rename")

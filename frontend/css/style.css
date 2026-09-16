@@ -164,6 +164,8 @@ a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}
 .gallery-float-like:hover{background:var(--red);transform:scale(1.1)}
 .gallery-float-like.liked{color:var(--red);background:rgba(244,33,46,0.2);opacity:1}
 .gallery-float-like svg{width:16px;height:16px}
+.gallery-preview{position:absolute;top:0;left:0;width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .3s;z-index:1}
+.gallery-card:hover .gallery-preview{opacity:1}
 
 /* Gallery Viewer (全屏查看器) */
 .gallery-viewer{position:fixed;top:0;left:0;width:100%;height:100%;z-index:9999;opacity:0;transition:opacity 0.3s ease}
@@ -187,26 +189,30 @@ a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}
 .gallery-viewer-image.gallery-transition-slide.gallery-viewer-transition{opacity:0;transform:translateX(50px)}
 .gallery-viewer-image.gallery-transition-zoom.gallery-viewer-transition{opacity:0;transform:scale(0.9)}
 
-/* Gallery Viewer Bottom Bar (轮播风格) */
-.gallery-viewer-bar{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);z-index:10;display:flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:999px;padding:6px 14px;box-shadow:0 2px 16px rgba(0,0,0,.4);opacity:0;transition:opacity 0.3s;pointer-events:none}
+/* Gallery Viewer Bottom Bar (视频弹窗风格) */
+.gallery-viewer-bar{position:absolute;bottom:16px;left:50%;transform:translateX(-50%);z-index:10;display:flex;align-items:center;gap:6px;background:rgba(0,0,0,.75);border-radius:999px;padding:6px 14px;backdrop-filter:blur(8px);opacity:0;transition:opacity 0.3s;pointer-events:none}
 .gallery-viewer.controls-visible .gallery-viewer-bar{opacity:1;pointer-events:auto}
 .gallery-viewer-bar:hover{opacity:1;pointer-events:auto}
 .gallery-viewer:fullscreen .gallery-viewer-bar,.gallery-viewer:-webkit-full-screen .gallery-viewer-bar{pointer-events:auto}
-.gv-bar-btn{width:28px;height:28px;background:var(--accent);border:none;border-radius:50%;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;flex-shrink:0}
-.gv-bar-btn:hover{background:var(--accent-hover)}
+.gv-bar-btn{width:28px;height:28px;background:transparent;border:none;border-radius:50%;color:#fff;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:background .15s;flex-shrink:0}
+.gv-bar-btn:hover{background:rgba(255,255,255,.15)}
 .gv-bar-btn:active{transform:scale(.9)}
 .gv-bar-btn svg{width:14px;height:14px}
-.gv-bar-btn.liked{background:var(--red)}
+.gv-bar-btn.liked{color:var(--red)}
 .gv-bar-btn.liked svg{fill:currentColor}
-.gv-bar-progress{width:120px;height:4px;background:var(--border);border-radius:2px;cursor:pointer;position:relative;flex-shrink:0}
+.gv-bar-progress{width:120px;height:4px;background:rgba(255,255,255,.25);border-radius:2px;cursor:pointer;position:relative;flex-shrink:0}
 .gv-bar-progress:hover{height:6px}
-.gv-bar-progress-fill{height:100%;background:var(--accent);border-radius:2px;width:0;transition:width 0.3s}
-.gv-bar-info{display:flex;flex-direction:column;align-items:center;min-width:80px;flex-shrink:0}
-.gv-bar-counter{font-size:12px;color:var(--text);white-space:nowrap;text-align:center;font-weight:600}
-.gv-bar-select{height:24px;background:var(--bg);border:1px solid var(--border);border-radius:999px;color:var(--text);font-size:11px;padding:0 6px;cursor:pointer;flex-shrink:0;outline:none}
-.gv-bar-select:focus{border-color:var(--accent)}
-.gv-bar-toggle{width:40px;height:24px;background:var(--bg);border:1px solid var(--border);border-radius:999px;color:var(--text2);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;font-size:10px;font-weight:600;flex-shrink:0}
+.gv-bar-progress-fill{height:100%;background:var(--accent);border-radius:2px;width:0;transition:width 0.1s;position:relative}
+.gv-bar-progress-thumb{position:absolute;top:50%;right:-5px;width:12px;height:12px;background:#fff;border-radius:50%;transform:translateY(-50%);opacity:0;transition:opacity .15s;box-shadow:0 1px 3px rgba(0,0,0,.5)}
+.gv-bar-progress:hover .gv-bar-progress-thumb{opacity:1}
+.gv-bar-info{display:flex;flex-direction:column;align-items:center;flex-shrink:0}
+.gv-bar-counter{font-size:12px;color:rgba(255,255,255,.85);white-space:nowrap;text-align:center;font-weight:500}
+.gv-bar-select{height:24px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:999px;color:#fff;font-size:11px;padding:0 6px;cursor:pointer;flex-shrink:0;outline:none}
+.gv-bar-select:focus{border-color:rgba(255,255,255,.4)}
+.gv-bar-toggle{width:40px;height:24px;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);border-radius:999px;color:rgba(255,255,255,.7);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .15s;font-size:10px;font-weight:600;flex-shrink:0}
 .gv-bar-toggle.active{background:var(--accent);border-color:var(--accent);color:#fff}
+.gv-bar-left,.gv-bar-right{display:flex;align-items:center;gap:4px;flex-shrink:0}
+.gv-bar-center{display:flex;align-items:center;justify-content:center;min-width:0}
 
 /* Cards (Grid Mode) */
 .card{background:var(--bg2);border:1px solid var(--border);border-radius:12px;overflow:hidden;cursor:pointer;transition:all .2s;position:relative}
@@ -527,9 +533,7 @@ a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}
 .vp-nav-prev{left:16px}
 .vp-nav-next{right:16px}
 .vp-nav-btn svg{width:22px;height:22px}
-.vp-locate-btn{position:absolute;top:16px;right:16px;width:32px;height:32px;background:rgba(0,0,0,.4);border:none;border-radius:50%;color:rgba(255,255,255,.7);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all .2s;z-index:10}
-.vp-locate-btn:hover{background:rgba(0,0,0,.7);color:#fff}
-.vp-locate-btn svg{width:16px;height:16px}
+
 .video-player-controls{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(transparent,rgba(0,0,0,.85));padding:0 12px 8px;opacity:0;transition:opacity .3s}
 .video-player-wrap:hover .video-player-controls{opacity:1}
 .video-player-wrap:fullscreen .video-player-controls,.video-player-wrap:-webkit-full-screen .video-player-controls{opacity:1 !important}

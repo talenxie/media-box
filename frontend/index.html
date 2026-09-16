@@ -153,6 +153,7 @@
           </button>
           <div class="search-dropdown" id="searchDropdownTagMgr"></div>
         </div>
+        <button class="btn" onclick="createTag()" title="新增标签">+ 新增标签</button>
       </div>
       <div id="tagManagerList" class="tag-mgr-list"></div>
       <div class="pending-pagination" id="tagMgrPagination">
@@ -365,9 +366,6 @@
     <button class="vp-nav-btn vp-gallery-nav vp-nav-next" onclick="window._modalNextVideo()" style="display:none">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>
     </button>
-    <button class="vp-locate-btn vp-gallery-locate" onclick="window._modalLocateVideo()" style="display:none" title="定位到页面">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-    </button>
     <div class="video-player-controls">
       <div class="vp-progress-wrap" id="vpProgressWrap">
         <div class="vp-progress-bar"><div class="vp-progress-fill" id="vpProgressFill"><div class="vp-progress-thumb"></div></div></div>
@@ -390,8 +388,11 @@
           <button class="vp-btn" id="vpLikeBtn" title="点赞" onclick="window._modalLike()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
           </button>
+          <button class="vp-btn vp-gallery-locate" id="vpLocateBtn" onclick="window._modalLocateVideo()" style="display:none" title="定位到页面">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          </button>
           <button class="vp-btn" id="vpDetailBtn" title="详情" onclick="window._modalDetail()">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="4" cy="6" r="1.5" fill="currentColor" stroke="none"/><line x1="9" y1="6" x2="21" y2="6"/><circle cx="4" cy="12" r="1.5" fill="currentColor" stroke="none"/><line x1="9" y1="12" x2="21" y2="12"/><circle cx="4" cy="18" r="1.5" fill="currentColor" stroke="none"/><line x1="9" y1="18" x2="21" y2="18"/></svg>
           </button>
           <button class="vp-btn" id="vpMuteBtn" title="静音">
             <svg class="vp-icon-unmute" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14M15.54 8.46a5 5 0 0 1 0 7.07"/></svg>
@@ -424,12 +425,12 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
       </button>
       <button class="modal-action-btn" id="modalImageDetailBtn" title="详情" onclick="window._modalDetail()">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="4" cy="6" r="1.5" fill="currentColor" stroke="none"/><line x1="9" y1="6" x2="21" y2="6"/><circle cx="4" cy="12" r="1.5" fill="currentColor" stroke="none"/><line x1="9" y1="12" x2="21" y2="12"/><circle cx="4" cy="18" r="1.5" fill="currentColor" stroke="none"/><line x1="9" y1="18" x2="21" y2="18"/></svg>
       </button>
     </div>
   </div>
 </div>
 
-<script src="js/app.js?v=198"></script>
+<script src="js/app.js?v=209"></script>
 </body>
 </html>

@@ -1638,9 +1638,13 @@
         var title = esc(v.title || '');
         var likedCls = v.liked ? ' liked' : '';
         var click = isImage ? ' onclick="window._openGalleryViewer(' + v.id + ')"' : ' onclick="event.stopPropagation();window._play(' + v.id + ')"';
+        var hoverAttr = isImage ? '' : ' onmouseenter="window._galleryHoverPlay(this)" onmouseleave="window._galleryHoverStop(this)"';
+        var badge = isImage ? '<span class="card-badge card-badge-img">图片</span>' : (v.duration ? '<span class="card-badge">' + esc(v.duration) + '</span>' : '');
+        var preview = isImage ? '' : '<video class="gallery-preview" muted preload="none" data-src="' + API + '/api/stream/video/' + v.id + '"></video>';
 
-        return '<div class="gallery-card' + '" data-id="' + v.id + '" data-type="' + (isImage ? 'image' : 'video') + '"' + click + '>' +
+        return '<div class="gallery-card" data-id="' + v.id + '" data-type="' + (isImage ? 'image' : 'video') + '"' + click + hoverAttr + '>' +
             (thumbSrc ? '<img class="gallery-thumb" data-src="' + thumbSrc + '" onerror="this.outerHTML=\'<div class=gallery-thumb-empty>?</div>\'"/>' : '<div class="gallery-thumb-empty">?</div>') +
+            preview + badge +
             '<button class="gallery-float-like' + likedCls + '" onclick="event.stopPropagation();window._like(' + v.id + ',this)" title="点赞">' +
                 '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>' +
             '</button>' +
@@ -1723,67 +1727,123 @@
                 '<img id="galleryViewerImage" class="gallery-viewer-image gallery-transition-' + gallerySlideshowTransition + '" src="' + API + '/api/stream/video/' + id + '"/>' +
             '</div>' +
             '<div class="gallery-viewer-bar">' +
-                '<button class="gv-bar-btn" onclick="window._galleryViewerPrev()" title="上一张">' +
-                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>' +
-                '</button>' +
-                '<div class="gv-bar-progress" id="gvBarProgress"><div class="gv-bar-progress-fill" id="gvBarFill"></div></div>' +
-                '<div class="gv-bar-info">' +
-                    '<span class="gv-bar-counter" id="gvBarCounter">' + (galleryViewerIndex + 1) + ' / ' + galleryTotalImageCount + '</span>' +
+                '<div class="gv-bar-left">' +
+                    '<button class="gv-bar-btn" onclick="window._galleryViewerPrev()" title="上一张">' +
+                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 18l-6-6 6-6"/></svg>' +
+                    '</button>' +
+                    '<div class="gv-bar-info">' +
+                        '<span class="gv-bar-counter" id="gvBarCounter">' + (galleryViewerIndex + 1) + ' / ' + galleryTotalImageCount + '</span>' +
+                    '</div>' +
+                    '<button class="gv-bar-btn" onclick="window._galleryViewerNext()" title="下一张">' +
+                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>' +
+                    '</button>' +
                 '</div>' +
-                '<button class="gv-bar-btn" id="galleryViewerLikeBtn" onclick="event.stopPropagation();window._galleryViewerLike()" title="点赞">' +
-                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>' +
-                '</button>' +
-                '<button class="gv-bar-btn" onclick="event.stopPropagation();window._galleryViewerDetail()" title="详情">' +
-                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>' +
-                '</button>' +
-                '<button class="gv-bar-btn" id="galleryViewerLocateBtn" onclick="event.stopPropagation();window._galleryViewerLocate()" title="定位到页面">' +
-                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>' +
-                '</button>' +
-                '<select class="gv-bar-select" id="gallerySlideshowIntervalSelect" onchange="window._galleryViewerSetInterval(this.value)" title="幻灯片间隔">' +
-                    '<option value="2"' + (gallerySlideshowInterval === 2 ? ' selected' : '') + '>2秒</option>' +
-                    '<option value="3"' + (gallerySlideshowInterval === 3 ? ' selected' : '') + '>3秒</option>' +
-                    '<option value="5">5秒</option>' +
-                    '<option value="8">8秒</option>' +
-                    '<option value="10">10秒</option>' +
-                '</select>' +
-                '<select class="gv-bar-select" id="gallerySlideshowTransitionSelect" onchange="window._galleryViewerSetTransition(this.value)" title="切换动画">' +
-                    '<option value="fade"' + (gallerySlideshowTransition === 'fade' ? ' selected' : '') + '>淡入淡出</option>' +
-                    '<option value="slide"' + (gallerySlideshowTransition === 'slide' ? ' selected' : '') + '>左右滑动</option>' +
-                    '<option value="zoom"' + (gallerySlideshowTransition === 'zoom' ? ' selected' : '') + '>缩放</option>' +
-                '</select>' +
-                '<button class="gv-bar-toggle' + (gallerySlideshowTimer ? ' active' : '') + '" id="galleryViewerSlideshowBtn" onclick="event.stopPropagation();window._galleryViewerToggleSlideshow()" title="幻灯片播放">AUTO</button>' +
-                '<button class="gv-bar-btn" onclick="window._galleryViewerNext()" title="下一张">' +
-                    '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 18l6-6-6-6"/></svg>' +
-                '</button>' +
+                '<div class="gv-bar-center">' +
+                    '<div class="gv-bar-progress" id="gvBarProgress"><div class="gv-bar-progress-fill" id="gvBarFill"><div class="gv-bar-progress-thumb"></div></div></div>' +
+                '</div>' +
+                '<div class="gv-bar-right">' +
+                    '<button class="gv-bar-btn" id="galleryViewerLikeBtn" onclick="event.stopPropagation();window._galleryViewerLike()" title="点赞">' +
+                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>' +
+                    '</button>' +
+                    '<button class="gv-bar-btn" id="galleryViewerLocateBtn" onclick="event.stopPropagation();window._galleryViewerLocate()" title="定位到页面">' +
+                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>' +
+                    '</button>' +
+                    '<button class="gv-bar-btn" onclick="event.stopPropagation();window._galleryViewerDetail()" title="详情">' +
+                        '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="4" cy="6" r="1.5" fill="currentColor" stroke="none"/><line x1="9" y1="6" x2="21" y2="6"/><circle cx="4" cy="12" r="1.5" fill="currentColor" stroke="none"/><line x1="9" y1="12" x2="21" y2="12"/><circle cx="4" cy="18" r="1.5" fill="currentColor" stroke="none"/><line x1="9" y1="18" x2="21" y2="18"/></svg>' +
+                    '</button>' +
+                    '<select class="gv-bar-select" id="gallerySlideshowIntervalSelect" onchange="window._galleryViewerSetInterval(this.value)" title="幻灯片间隔">' +
+                        '<option value="2"' + (gallerySlideshowInterval === 2 ? ' selected' : '') + '>2秒</option>' +
+                        '<option value="3"' + (gallerySlideshowInterval === 3 ? ' selected' : '') + '>3秒</option>' +
+                        '<option value="5">5秒</option>' +
+                        '<option value="8">8秒</option>' +
+                        '<option value="10">10秒</option>' +
+                    '</select>' +
+                    '<select class="gv-bar-select" id="gallerySlideshowTransitionSelect" onchange="window._galleryViewerSetTransition(this.value)" title="切换动画">' +
+                        '<option value="fade"' + (gallerySlideshowTransition === 'fade' ? ' selected' : '') + '>淡入淡出</option>' +
+                        '<option value="slide"' + (gallerySlideshowTransition === 'slide' ? ' selected' : '') + '>左右滑动</option>' +
+                        '<option value="zoom"' + (gallerySlideshowTransition === 'zoom' ? ' selected' : '') + '>缩放</option>' +
+                    '</select>' +
+                    '<button class="gv-bar-toggle' + (gallerySlideshowTimer ? ' active' : '') + '" id="galleryViewerSlideshowBtn" onclick="event.stopPropagation();window._galleryViewerToggleSlideshow()" title="幻灯片播放">AUTO</button>' +
+                '</div>' +
             '</div>';
 
         document.body.appendChild(viewer);
         setTimeout(function () { viewer.classList.add('active'); }, 10);
 
-        // 鼠标在图片上移动时显示操作栏，静止后自动隐藏
+        // 鼠标在图片上或屏幕底部区域时显示操作栏
         var viewerHideTimer = null;
+        var inStickyZone = false;
         function showViewerControls() {
             viewer.classList.add('controls-visible');
+            if (viewerHideTimer) { clearTimeout(viewerHideTimer); viewerHideTimer = null; }
+        }
+        function scheduleHide(delay) {
+            if (inStickyZone) return;
             if (viewerHideTimer) clearTimeout(viewerHideTimer);
-            viewerHideTimer = setTimeout(function () { viewer.classList.remove('controls-visible'); }, 2000);
+            viewerHideTimer = setTimeout(function () { viewer.classList.remove('controls-visible'); }, delay || 2000);
         }
-        var viewerImg = document.getElementById('galleryViewerImage');
-        if (viewerImg) {
-            viewerImg.addEventListener('mousemove', showViewerControls);
-            viewerImg.addEventListener('mouseleave', function () {
-                if (viewerHideTimer) clearTimeout(viewerHideTimer);
-                viewerHideTimer = setTimeout(function () { viewer.classList.remove('controls-visible'); }, 300);
-            });
-        }
+        // 屏幕下方150px区域 + 图片上 移动时显示
+        viewer.addEventListener('mousemove', function (e) {
+            var h = window.innerHeight;
+            if (e.clientY > h - 150) {
+                inStickyZone = true;
+                showViewerControls();
+                return;
+            }
+            inStickyZone = false;
+            var viewerImg = document.getElementById('galleryViewerImage');
+            if (viewerImg && viewerImg.contains(e.target)) {
+                showViewerControls();
+                scheduleHide(2000);
+            }
+        });
+        viewer.addEventListener('mouseleave', function () {
+            inStickyZone = false;
+            scheduleHide(300);
+        });
+
         // 底部操作栏自身也保持显示
         var viewerBar = viewer.querySelector('.gallery-viewer-bar');
         if (viewerBar) {
             viewerBar.addEventListener('mouseenter', function () {
-                if (viewerHideTimer) clearTimeout(viewerHideTimer);
-                viewer.classList.add('controls-visible');
+                inStickyZone = true;
+                showViewerControls();
             });
-            viewerBar.addEventListener('mouseleave', showViewerControls);
+            viewerBar.addEventListener('mouseleave', function (e) {
+                // 如果鼠标还在底部区域，不隐藏
+                var h = window.innerHeight;
+                if (e.clientY > h - 150) return;
+                inStickyZone = false;
+                scheduleHide(2000);
+            });
         }
+
+        // 进度条拖动
+        var gvDragging = false;
+        var gvProgress = document.getElementById('gvBarProgress');
+        function gvSeek(e) {
+            if (!gvProgress) return;
+            var rect = gvProgress.getBoundingClientRect();
+            var pct = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+            var targetIndex = Math.round(pct * (galleryViewerItems.length - 1));
+            if (targetIndex >= 0 && targetIndex < galleryViewerItems.length && targetIndex !== galleryViewerIndex) {
+                galleryViewerIndex = targetIndex;
+                updateGalleryViewerImage();
+            }
+        }
+        function gvOnMove(e) { if (gvDragging) { gvSeek(e); e.preventDefault(); } }
+        function gvOnUp() { gvDragging = false; }
+        if (gvProgress) {
+            gvProgress.addEventListener('mousedown', function (e) {
+                gvDragging = true;
+                gvSeek(e);
+                e.preventDefault();
+                e.stopPropagation();
+            });
+        }
+        document.addEventListener('mousemove', gvOnMove);
+        document.addEventListener('mouseup', gvOnUp);
+
         // 打开时自动显示2秒
         showViewerControls();
 
@@ -1792,11 +1852,18 @@
 
         // 键盘事件
         document.addEventListener('keydown', galleryViewerKeyHandler);
+
+        // 存储清理函数
+        viewer._gvCleanup = function () {
+            document.removeEventListener('mousemove', gvOnMove);
+            document.removeEventListener('mouseup', gvOnUp);
+        };
     }
 
     function closeGalleryViewer() {
         var viewer = document.getElementById('galleryViewer');
         if (viewer) {
+            if (viewer._gvCleanup) viewer._gvCleanup();
             viewer.classList.remove('active');
             setTimeout(function () { viewer.remove(); }, 300);
         }
@@ -1952,6 +2019,7 @@
     function galleryViewerDetail() {
         var id = galleryViewerItems[galleryViewerIndex];
         if (!id) return;
+        _detailReturnTo = { type: 'gallery', index: galleryViewerIndex, items: galleryViewerItems.slice(), page: state.page };
         closeGalleryViewer();
         openDetail(id);
     }
@@ -2471,6 +2539,7 @@
     // === Detail Page ===
     var savedScrollPosition = 0;
     var detailSourceView = 'home'; // 详情页来源页面
+    var _detailReturnTo = null; // 详情页返回目标：gallery viewer 或 video modal
 
     function openDetail(videoId) {
         detailSourceView = state.currentView; // 记录来源页面
@@ -2530,6 +2599,14 @@
                 if (detailControls) detailControls.style.display = '';
                 if (centerPlayBtn) centerPlayBtn.style.display = '';
                 vid.src = API + '/api/stream/video/' + videoId;
+                // 从弹窗跳转时继续播放进度
+                var seekTime = _detailReturnTo ? _detailReturnTo.time : 0;
+                if (seekTime > 0) {
+                    vid.addEventListener('loadedmetadata', function onMeta() {
+                        vid.removeEventListener('loadedmetadata', onMeta);
+                        vid.currentTime = seekTime;
+                    });
+                }
                 vid.play().catch(function () {});
                 trackViewCount(vid, videoId);
                 initDetailControls(vid);
@@ -3041,7 +3118,65 @@
 
     function closeDetail(restoreScroll) {
         document.getElementById('detailView').style.display = 'none';
-        // 恢复到来源页面
+        // 清理视频
+        var vid = document.getElementById('detailVideo');
+        if (document.pictureInPictureElement !== vid) {
+            vid.pause();
+            vid.src = '';
+        }
+        var detailImg = document.getElementById('detailImage');
+        if (detailImg) {
+            detailImg.style.display = 'none';
+            detailImg.src = '';
+        }
+        state.currentVideoId = null;
+        localStorage.removeItem(userKey('detailVideoId'));
+        stopDanmakuLoop('danmakuLayerDetail');
+
+        // 从画廊查看器或视频弹窗进入的详情，返回时恢复
+        var ret = _detailReturnTo;
+        _detailReturnTo = null;
+        if (ret && ret.type === 'gallery') {
+            // 恢复列表页显示
+            document.getElementById('listView').style.display = '';
+            updateNav();
+            // 恢复画廊查看器
+            if (ret.page !== state.page) {
+                state.page = ret.page;
+                loadVideos().then(function () {
+                    setTimeout(function () {
+                        galleryViewerItems = ret.items;
+                        galleryViewerIndex = ret.index;
+                        openGalleryViewer(galleryViewerItems[galleryViewerIndex]);
+                    }, 100);
+                });
+            } else {
+                galleryViewerItems = ret.items;
+                galleryViewerIndex = ret.index;
+                openGalleryViewer(galleryViewerItems[galleryViewerIndex]);
+            }
+            return;
+        }
+        if (ret && ret.type === 'modal') {
+            // 恢复视频弹窗
+            _modalVideoList = ret.list;
+            _modalVideoIndex = ret.index;
+            _modalCurrentId = ret.id;
+            document.getElementById('listView').style.display = '';
+            updateNav();
+            playVideo(ret.id);
+            // 继续播放进度
+            if (ret.time > 0) {
+                var modalVid = document.getElementById('modalVideo');
+                modalVid.addEventListener('loadedmetadata', function onMeta() {
+                    modalVid.removeEventListener('loadedmetadata', onMeta);
+                    modalVid.currentTime = ret.time;
+                });
+            }
+            return;
+        }
+
+        // 正常返回来源页面
         var source = detailSourceView || 'home';
         if (source === 'pending') {
             document.getElementById('pendingView').style.display = '';
@@ -3053,23 +3188,7 @@
         } else {
             document.getElementById('listView').style.display = '';
         }
-        updateNav(); // 更新右侧栏可见性
-        var vid = document.getElementById('detailVideo');
-        // 如果视频在画中画模式，不暂停
-        if (document.pictureInPictureElement !== vid) {
-            vid.pause();
-            vid.src = '';
-        }
-        // 清理图片
-        var detailImg = document.getElementById('detailImage');
-        if (detailImg) {
-            detailImg.style.display = 'none';
-            detailImg.src = '';
-        }
-        state.currentVideoId = null;
-        localStorage.removeItem(userKey('detailVideoId'));
-        stopDanmakuLoop('danmakuLayerDetail');
-        // 恢复滚动位置（只有从详情页返回时才恢复）
+        updateNav();
         if (restoreScroll !== false) {
             window.scrollTo(0, savedScrollPosition);
         }
@@ -3090,6 +3209,23 @@
         if (video) { video.pause(); video.currentTime = 0; }
         var thumbVideo = card.querySelector('.card-thumb-video');
         if (thumbVideo) thumbVideo.style.opacity = '1';
+    }
+
+    // 画廊模式：悬停播放视频
+    function galleryHoverPlay(card) {
+        var thumb = card.querySelector('.gallery-thumb');
+        var video = card.querySelector('.gallery-preview');
+        if (!video) return;
+        if (!video.src) video.src = video.dataset.src;
+        if (thumb) thumb.style.opacity = '0';
+        video.play().catch(function () {});
+    }
+
+    function galleryHoverStop(card) {
+        var thumb = card.querySelector('.gallery-thumb');
+        var video = card.querySelector('.gallery-preview');
+        if (video) { video.pause(); video.currentTime = 0; }
+        if (thumb) thumb.style.opacity = '1';
     }
 
     // === Modal (Grid Mode) ===
@@ -3843,6 +3979,45 @@
             pagHtml += '<button onclick="goTagMgrPage(parseInt(this.previousElementSibling.value))">GO</button></div>';
         }
         document.getElementById('tagMgrPagination').innerHTML = '<div class="pending-pagination-inner">' + pagHtml + '</div>';
+    }
+
+    function createTag() {
+        var overlay = document.createElement('div');
+        overlay.className = 'confirm-overlay';
+        overlay.innerHTML = '<div class="confirm-dialog">' +
+            '<div class="confirm-title">新增标签</div>' +
+            '<input class="tag-mgr-desc-input" id="newTagNameInput" placeholder="输入标签名称..." style="width:100%;padding:10px;background:var(--input);border:1px solid var(--input-border);border-radius:8px;color:var(--text);font-size:14px;outline:none;font-family:inherit;margin:12px 0"/>' +
+            '<div class="confirm-actions">' +
+                '<button class="btn btn-outline create-tag-cancel">取消</button>' +
+                '<button class="btn create-tag-ok">创建</button>' +
+            '</div>' +
+        '</div>';
+
+        overlay.querySelector('.create-tag-cancel').onclick = function () { overlay.remove(); };
+        overlay.querySelector('.create-tag-ok').onclick = function () { confirmCreateTag(overlay); };
+        overlay.onclick = function (e) { if (e.target === overlay) overlay.remove(); };
+        document.body.appendChild(overlay);
+
+        setTimeout(function () {
+            var input = document.getElementById('newTagNameInput');
+            if (input) input.focus();
+        }, 100);
+    }
+
+    function confirmCreateTag(overlay) {
+        var input = document.getElementById('newTagNameInput');
+        if (!input) return;
+        var name = input.value.trim();
+        if (!name) { toast('请输入标签名称'); return; }
+        api('POST', '/api/tags', { name: name }).then(function (r) {
+            if (r.code === 200) {
+                toast('标签已创建');
+                overlay.remove();
+                loadTagManagerList();
+            } else {
+                toast(r.msg || '创建失败');
+            }
+        });
     }
 
     function goTagMgrPage(page) {
@@ -5581,6 +5756,10 @@
     function modalDetail() {
         if (!_modalCurrentId) return;
         var id = _modalCurrentId;
+        // 保存当前播放进度
+        var vid = document.getElementById('modalVideo');
+        var seekTime = (vid && vid.src) ? vid.currentTime : 0;
+        _detailReturnTo = { type: 'modal', id: id, time: seekTime, list: _modalVideoList.slice(), index: _modalVideoIndex };
         // 关闭弹窗
         closeModal();
         closeImageModal();
@@ -5596,6 +5775,8 @@
     window._filter = filter;
     window._hoverPlay = hoverPlay;
     window._hoverStop = hoverStop;
+    window._galleryHoverPlay = galleryHoverPlay;
+    window._galleryHoverStop = galleryHoverStop;
     window._feedPip = feedPip;
     window._feedFullscreen = feedFullscreen;
     window._feedToggleMute = feedToggleMute;
@@ -5666,6 +5847,7 @@
     window.switchMode = switchMode;
     window.toggleFolderPanel = toggleFolderPanel;
     window.showTagManager = showTagManager;
+    window.createTag = createTag;
     window.filterTagMgr = filterTagMgr;
     window.goTagMgrPage = goTagMgrPage;
     window.toggleTagMgrExpand = toggleTagMgrExpand;
@@ -5759,9 +5941,10 @@
             return;
         }
 
-        // 列表页翻页（画廊查看器打开时不触发）
+        // 列表页翻页（画廊查看器或视频弹窗打开时不触发）
         var galleryViewer = document.getElementById('galleryViewer');
-        if (!galleryViewer) {
+        var videoModal = document.getElementById('videoModal');
+        if (!galleryViewer && !(videoModal && videoModal.classList.contains('active'))) {
             if (e.key === 'ArrowLeft') goPage(state.page - 1);
             if (e.key === 'ArrowRight') goPage(state.page + 1);
         }
